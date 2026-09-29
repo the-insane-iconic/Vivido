@@ -1,25 +1,59 @@
+import type { PageAnalysis, VisualBible } from "../../src/types";
+
+export interface ImageGenerationInput {
+  prompt: string;
+  title: string;
+  kind?: string;
+  sourceText?: string;
+  pageNumber?: number;
+  analysis?: PageAnalysis;
+  bible?: VisualBible;
+}
+
 export interface ImageGenerationProvider {
-  generate(input: { prompt: string; title: string; kind?: string }): Promise<{ imageUrl: string; provider: string; model?: string }>;
+  generate(input: ImageGenerationInput): Promise<{ imageUrl: string; provider: string; model?: string }>;
   readonly providerName: string;
 }
 
 // Global shared image cache used across generation and proxy
 export const globalImageCache = new Map<string, { buffer: Buffer; contentType: string }>();
 
+const AI2_SYSTEM_PROMPT = `You are AI 2: Vivido's Master Visual Scene Director and Vector Cinematographer.
+Your job is to process each literary scene hook ONE BY ONE, translating it into a stunning, source-grounded 16:9 cinematic SVG artwork (viewBox="0 0 1024 576" width="1024" height="576").
+
+CRITICAL DIRECTIVES FOR COMPLETE STORY CONTINUITY:
+1. Strict Story Continuity:
+   - Match the book's exact historical era, time of year, season, and setting.
+   - Enforce continuous character appearance across all scenes (e.g. for Holden Caulfield in The Catcher in the Rye: 16-year-old lanky teenage boy, vintage brown tweed coat, iconic red hunting cap worn backward).
+   - Maintain a unified 1950s cinematic Kodachrome/Technicolor aesthetic.
+2. Rich Visual Layering (viewBox="0 0 1024 576" width="1024" height="576"):
+   - Sky & atmospheric lighting gradients (moody overcast, golden hour, or dim interior lighting).
+   - Midground & background architectural / natural elements (school hills, rusted cannons, campus gates, mid-century bungalows).
+   - Distinct character and object silhouettes or stylized vector rendering (Holden, car, cannon, players, professor).
+   - Atmospheric vignette, mist, or volumetric glow.
+   - Cinematic lower title pill with clean typography:
+     <rect x="232" y="500" width="560" height="48" rx="24" fill="rgba(15,23,42,0.85)" stroke="rgba(255,255,255,0.12)"/>
+     <text x="512" y="530" fill="#f8fafc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="16" font-weight="600" text-anchor="middle">{Scene Title}</text>
+3. ABSOLUTE PROHIBITIONS:
+   - NEVER output modern elements (no modern alloy wheels, modern smartphones, modern cars).
+   - NEVER output text or newspaper articles outside of the lower title pill.
+   - NEVER output medical, biological, or anatomical diagrams.
+4. Output valid SVG XML only starting with <svg and ending with </svg>. Do not wrap in markdown code blocks.`;
+
 export class ProviderImageGenerator implements ImageGenerationProvider {
   get providerName(): string {
     if (process.env.OPENAI_API_KEY && process.env.IMAGE_PROVIDER === "openai") return "OpenAI DALL-E 3";
     if (process.env.IMAGE_MODEL_URL) return "Custom Image Provider";
-    return "Pollinations FLUX (Zero-Config)";
+    return `Groq Visual Director (${process.env.GROQ_MODEL ?? "openai/gpt-oss-120b"})`;
   }
 
-  async generate(input: { prompt: string; title: string; kind?: string }): Promise<{ imageUrl: string; provider: string; model?: string }> {
+  async generate(input: ImageGenerationInput): Promise<{ imageUrl: string; provider: string; model?: string }> {
     // 1. OpenAI DALL-E 3 if explicitly configured
     if (process.env.OPENAI_API_KEY && process.env.IMAGE_PROVIDER === "openai") {
       try {
         return await this.callOpenAIDallE(input);
       } catch (err) {
-        console.warn("OpenAI DALL-E generation failed, falling back to multi-tier engine:", err);
+        console.warn("OpenAI DALL-E generation failed, falling back to AI 2 scene synthesizer:", err);
       }
     }
 
@@ -28,15 +62,110 @@ export class ProviderImageGenerator implements ImageGenerationProvider {
       try {
         return await this.callCustomEndpoint(input);
       } catch (err) {
-        console.warn("Custom image endpoint failed, falling back to multi-tier engine:", err);
+        console.warn("Custom image endpoint failed, falling back to AI 2 scene synthesizer:", err);
       }
     }
 
-    // 3. Multi-tier visual synthesis: Pollinations FLUX -> Wikimedia Photography -> Styled SVG
-    return await this.generateRobustVisual(input);
+    // 3. AI 2: Groq Scene Director & Vector Cinematographer (Story Continuity Engine)
+    const groqKey = process.env.GROQ_IMAGE_API_KEY || process.env.GROQ_API_KEY;
+    if (groqKey) {
+      try {
+        const ai2Result = await this.generateWithAI2(input, groqKey);
+        if (ai2Result) return ai2Result;
+      } catch (err) {
+        console.warn("AI 2 scene synthesis failed, falling back to procedural engine:", err);
+      }
+    }
+
+    // 4. Guaranteed procedural fallback with scene title and kind styling
+    return {
+      imageUrl: this.generateSvgFallback(input),
+      provider: "vivido-vector-engine",
+      model: "svg-synthesis-v1"
+    };
   }
 
-  private async callOpenAIDallE(input: { prompt: string; title: string }): Promise<{ imageUrl: string; provider: string; model: string }> {
+  private async generateWithAI2(input: ImageGenerationInput, apiKey: string): Promise<{ imageUrl: string; provider: string; model: string } | null> {
+    const baseUrl = (process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1").replace(/\/$/, "");
+    const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
+
+    // Build rich narrative context from AI 1's page analysis & Book Visual Bible
+    const narrativeContext = {
+      pageNumber: input.pageNumber || 1,
+      eraAndPeriod: input.bible?.style?.historicalPeriod || "Late 1940s / 1950 post-war America",
+      settingAndPlace: input.analysis?.setting || "Pencey Prep / Convalescent Home, 1949",
+      characters: input.analysis?.characters || ["Holden Caulfield (16-year-old lanky teenage boy, red hunting cap worn backward, vintage tweed coat)"],
+      visualStyle: input.bible?.style?.lightingApproach || "1950s Kodachrome 35mm film still, warm earthy mid-century tones, 16:9 spherical framing",
+      palette: input.bible?.style?.colorPalette || "Warm camel, dusty teal, brick red, muted ivory"
+    };
+
+    const sceneData = {
+      title: input.title,
+      sourceTextQuote: input.sourceText || "",
+      artDirectorPrompt: input.prompt,
+      sceneKind: input.kind || "scene"
+    };
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+
+    try {
+      const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: AI2_SYSTEM_PROMPT },
+            {
+              role: "user",
+              content: `Book Narrative Context:\n${JSON.stringify(narrativeContext, null, 2)}\n\nScene To Synthesize:\n${JSON.stringify(sceneData, null, 2)}\n\nGenerate the complete 16:9 SVG visual now:`
+            }
+          ],
+          temperature: 0.25
+        })
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        throw new Error(`Groq API responded with status ${response.status}`);
+      }
+
+      const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+      let rawSvg = data.choices?.[0]?.message?.content || "";
+
+      // Extract <svg>...</svg> from response if surrounded by text or markdown code fences
+      const svgMatch = rawSvg.match(/<svg[\s\S]*?<\/svg>/i);
+      if (svgMatch) {
+        rawSvg = svgMatch[0].trim();
+      }
+
+      if (rawSvg.startsWith("<svg") && rawSvg.includes("</svg>")) {
+        const dataUri = `data:image/svg+xml;utf8,${encodeURIComponent(rawSvg)}`;
+        // Cache in memory for instant retrieval
+        globalImageCache.set(dataUri, {
+          buffer: Buffer.from(rawSvg, "utf-8"),
+          contentType: "image/svg+xml"
+        });
+        return {
+          imageUrl: dataUri,
+          provider: "vivido-continuity-ai",
+          model: "groq-scene-director"
+        };
+      }
+    } catch (err) {
+      clearTimeout(timeout);
+      console.warn("AI 2 Groq SVG generation failed:", err);
+    }
+
+    return null;
+  }
+
+  private async callOpenAIDallE(input: ImageGenerationInput): Promise<{ imageUrl: string; provider: string; model: string }> {
     const baseUrl = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
     const apiKey = process.env.OPENAI_API_KEY!;
     const model = process.env.IMAGE_MODEL || "dall-e-3";
@@ -63,7 +192,7 @@ export class ProviderImageGenerator implements ImageGenerationProvider {
     return { imageUrl: url, provider: "openai", model };
   }
 
-  private async callCustomEndpoint(input: { prompt: string; title: string }): Promise<{ imageUrl: string; provider: string; model?: string }> {
+  private async callCustomEndpoint(input: ImageGenerationInput): Promise<{ imageUrl: string; provider: string; model?: string }> {
     const endpoint = process.env.IMAGE_MODEL_URL!;
     const response = await fetch(endpoint, {
       method: "POST",
@@ -80,162 +209,7 @@ export class ProviderImageGenerator implements ImageGenerationProvider {
     return { imageUrl, provider: "configured", model: payload.model };
   }
 
-  private async generateRobustVisual(input: { prompt: string; title: string; kind?: string }): Promise<{ imageUrl: string; provider: string; model: string }> {
-    // 1. Sanitize prompt: strictly standard 16:9 spherical perspective (remove all anamorphic squashing/stretching)
-    const cleanPrompt = this.sanitizePrompt(input.prompt, input.title);
-
-    // 2. Try Pollinations FLUX with clean prompt & browser headers
-    try {
-      const fluxResult = await this.tryPollinations(cleanPrompt, input.title);
-      if (fluxResult) return fluxResult;
-    } catch (err) {
-      console.warn("Pollinations synthesis attempt skipped:", err);
-    }
-
-    // 3. High-res editorial & archival scene photography fallback (Wikimedia Commons)
-    try {
-      const wikiResult = await this.searchWikimediaPhotography(input.title, input.prompt);
-      if (wikiResult) return wikiResult;
-    } catch (err) {
-      console.warn("Wikimedia archival visual search skipped:", err);
-    }
-
-    // 4. Guaranteed high-aesthetic vector concept render
-    return {
-      imageUrl: this.generateSvgFallback(input),
-      provider: "vivido-vector-engine",
-      model: "svg-synthesis-v1"
-    };
-  }
-
-  private sanitizePrompt(rawPrompt: string, title: string): string {
-    const base = rawPrompt && rawPrompt.length > 10 ? rawPrompt : `${title}, cinematic scene`;
-    return base
-      // Replace non-breaking / special dashes with standard ASCII
-      .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015]/g, "-")
-      // Replace smart curly quotes with standard ASCII
-      .replace(/[\u2018\u2019]/g, "'")
-      .replace(/[\u201C\u201D]/g, '"')
-      // Strip brackets that confuse image tokens
-      .replace(/[\[\]]/g, " ")
-      // Strictly replace anamorphic / 2.35:1 keywords with standard 16:9 spherical framing
-      .replace(/\banamorphic\b/gi, "spherical 35mm lens")
-      .replace(/\b2\.35:1\b/gi, "16:9")
-      .replace(/\bultrawide\b/gi, "16:9 widescreen")
-      .replace(/\bcinemascope\b/gi, "16:9 landscape")
-      .replace(/["\n\r\t]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 220); // Keep within 220 chars for highest provider success rate
-  }
-
-  private async tryPollinations(cleanPrompt: string, title: string): Promise<{ imageUrl: string; provider: string; model: string } | null> {
-    // Generate deterministic hash seed for image stability
-    let hash = 0;
-    const seedStr = `${title}:${cleanPrompt.slice(0, 60)}`;
-    for (let i = 0; i < seedStr.length; i++) {
-      hash = ((hash << 5) - hash) + seedStr.charCodeAt(i);
-      hash |= 0;
-    }
-    const seed = Math.abs(hash) % 1000000;
-
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=1024&height=576&model=flux&nologo=true&seed=${seed}`;
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
-
-    try {
-      const response = await fetch(imageUrl, {
-        signal: controller.signal,
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-          "Referer": "https://pollinations.ai/",
-          "Origin": "https://pollinations.ai"
-        }
-      });
-      clearTimeout(timeout);
-
-      if (response.ok) {
-        const buffer = Buffer.from(await response.arrayBuffer());
-        if (buffer.byteLength > 2000) {
-          const contentType = response.headers.get("content-type") || "image/jpeg";
-          globalImageCache.set(imageUrl, { buffer, contentType });
-          return { imageUrl, provider: "pollinations", model: "flux-schnell" };
-        }
-      }
-    } catch {
-      clearTimeout(timeout);
-    }
-
-    return null;
-  }
-
-  public async searchWikimediaPhotography(title: string, prompt: string): Promise<{ imageUrl: string; provider: string; model: string } | null> {
-    // Extract key visual subjects: e.g. "Jaguar sports car", "interior hallway", "writing at desk"
-    const promptSubject = prompt.split(/[,.]/)[0].replace(/[\u2010\u2011\u2012\u2013\u2014\u2015]/g, "-").replace(/[^\w\s-]/g, " ").trim();
-    const cleanTitle = title.replace(/[\u2010\u2011\u2012\u2013\u2014\u2015]/g, "-").replace(/[^\w\s-]/g, " ").trim();
-
-    const candidates = [
-      promptSubject.slice(0, 60),
-      cleanTitle.split(/\s+/).slice(0, 4).join(" "),
-      cleanTitle
-    ];
-
-    for (const rawTerm of candidates) {
-      const term = rawTerm.trim();
-      if (term.length < 3) continue;
-
-      const wikiUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(term + " -book -document -page")}&gsrlimit=3&prop=imageinfo&iiprop=url|size&iiurlwidth=1024&format=json`;
-
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 6000);
-        const res = await fetch(wikiUrl, {
-          signal: controller.signal,
-          headers: { "User-Agent": "VividoReader/1.0 (https://github.com/the-insane-iconic/Vivido; vividoreader@gmail.com)" }
-        });
-        clearTimeout(timeout);
-
-        if (!res.ok) continue;
-        const data = await res.json() as { query?: { pages?: Record<string, { imageinfo?: Array<{ thumburl?: string; url?: string }> }> } };
-        const pages = data.query?.pages;
-        if (!pages) continue;
-
-        for (const p of Object.values(pages)) {
-          const info = p.imageinfo?.[0];
-          const candidateUrl = info?.thumburl || info?.url;
-          if (
-            candidateUrl &&
-            !candidateUrl.endsWith(".svg") &&
-            !candidateUrl.endsWith(".tif") &&
-            !candidateUrl.endsWith(".ogg") &&
-            !candidateUrl.endsWith(".pdf")
-          ) {
-            // Pre-fetch and cache thumbnail so client proxy delivers instantly
-            try {
-              const imgRes = await fetch(candidateUrl, {
-                headers: { "User-Agent": "VividoReader/1.0" }
-              });
-              if (imgRes.ok) {
-                const buffer = Buffer.from(await imgRes.arrayBuffer());
-                if (buffer.byteLength > 2000) {
-                  globalImageCache.set(candidateUrl, {
-                    buffer,
-                    contentType: imgRes.headers.get("content-type") || "image/jpeg"
-                  });
-                  return { imageUrl: candidateUrl, provider: "wikimedia-commons", model: "archival-photography" };
-                }
-              }
-            } catch {}
-          }
-        }
-      } catch {}
-    }
-
-    return null;
-  }
-
-  public generateSvgFallback(input: { prompt: string; title: string; kind?: string }): string {
+  public generateSvgFallback(input: { prompt?: string; title: string; kind?: string }): string {
     const kind = input.kind || "concept";
     const colors: Record<string, { bg1: string; bg2: string; accent: string; label: string }> = {
       diagram: { bg1: "#0e1726", bg2: "#1e293b", accent: "#38bdf8", label: "Architecture / Diagram" },

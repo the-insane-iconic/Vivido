@@ -258,11 +258,17 @@ export class InMemoryJobQueue {
     this.emit({ type: "hook.generation.started", jobId, pageId: hook.pageId, hook: running, timestamp: Date.now() });
 
     try {
+      const analysis = this.analysisStore.get(hook.pageId);
+      const bible = this.bibleManager.getBible();
       const result = await this.withRetry(
         () => this.imageProvider.generate({
           prompt: hook.prompt,
           title: hook.title,
-          kind: hook.kind
+          kind: hook.kind,
+          sourceText: hook.sourceText,
+          pageNumber: hook.pageNumber,
+          analysis,
+          bible,
         }),
         2
       );

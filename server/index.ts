@@ -55,7 +55,22 @@ app.get("/api/image-proxy", async (req, res) => {
   const targetUrl = String(req.query.url || "").trim();
   if (!targetUrl) return res.status(400).send("url parameter required");
 
-  // 1. Check in-memory cache
+  // 1. If targetUrl is already a data URI (SVG or image), decode and serve directly
+  if (targetUrl.startsWith("data:")) {
+    const commaIdx = targetUrl.indexOf(",");
+    if (commaIdx !== -1) {
+      const meta = targetUrl.slice(5, commaIdx);
+      const data = targetUrl.slice(commaIdx + 1);
+      const isBase64 = meta.includes(";base64");
+      const contentType = meta.split(";")[0] || "image/svg+xml";
+      const buffer = isBase64 ? Buffer.from(data, "base64") : Buffer.from(decodeURIComponent(data), "utf-8");
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Cache-Control", "public, max-age=86400, immutable");
+      return res.send(buffer);
+    }
+  }
+
+  // 2. Check in-memory cache
   if (globalImageCache.has(targetUrl)) {
     const item = globalImageCache.get(targetUrl)!;
     res.setHeader("Content-Type", item.contentType);
@@ -65,7 +80,7 @@ app.get("/api/image-proxy", async (req, res) => {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timeout = setTimeout(() => controller.abort(), 12000);
     const upstream = await fetch(targetUrl, {
       signal: controller.signal,
       headers: {
@@ -94,22 +109,14 @@ app.get("/api/image-proxy", async (req, res) => {
   } catch (err) {
     console.warn("Image proxy upstream fetch failed:", targetUrl, err);
 
-    // Fallback: search Wikimedia or synthesize SVG concept
-    try {
-      const promptMatch = targetUrl.match(/\/prompt\/([^?]+)/);
-      const queryPrompt = promptMatch ? decodeURIComponent(promptMatch[1]) : "literary scene";
-      const wikiFallback = await imageGen.searchWikimediaPhotography(queryPrompt, queryPrompt);
-      if (wikiFallback && globalImageCache.has(wikiFallback.imageUrl)) {
-        const item = globalImageCache.get(wikiFallback.imageUrl)!;
-        res.setHeader("Content-Type", item.contentType);
-        return res.send(item.buffer);
-      }
-    } catch {}
+    // Guaranteed fallback: generate high-aesthetic SVG on the fly
+    const promptMatch = targetUrl.match(/\/prompt\/([^?]+)/);
+    const queryPrompt = promptMatch ? decodeURIComponent(promptMatch[1]) : "Visual Scene Anchor";
+    const title = queryPrompt.split(/[,.]/)[0].slice(0, 50);
 
-    // Final fallback: generate high-quality SVG on the fly
     const fallbackSvg = imageGen.generateSvgFallback({
-      title: "Visual Scene Anchor",
-      prompt: targetUrl
+      title: title || "Visual Scene Anchor",
+      prompt: queryPrompt
     });
     const svgData = decodeURIComponent(fallbackSvg.replace("data:image/svg+xml;utf8,", ""));
     res.setHeader("Content-Type", "image/svg+xml");
