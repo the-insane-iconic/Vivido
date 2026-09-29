@@ -10,7 +10,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import type { VisualHook } from "../types";
-import { getHookColor } from "../lib/colors";
+import { getHookColor, sortHooksByTextOrder, generateFallbackSvg } from "../lib/colors";
 
 export interface StageStatus {
   isAnalyzingText: boolean;
@@ -34,6 +34,7 @@ export function VisualRail({
   providerLabel,
   stageStatus,
   currentPage = 1,
+  pageText = "",
 }: {
   hooks: VisualHook[];
   maxHooks: number;
@@ -48,11 +49,13 @@ export function VisualRail({
   providerLabel?: string;
   stageStatus?: StageStatus;
   currentPage?: number;
+  pageText?: string;
 }) {
   const [activeModalHook, setActiveModalHook] = useState<VisualHook | null>(null);
   const [showConfig, setShowConfig] = useState(false);
 
-  const readyCount = hooks.filter(h => h.status === "ready").length;
+  const sortedHooks = sortHooksByTextOrder(hooks, pageText);
+  const readyCount = sortedHooks.filter(h => h.status === "ready").length;
 
   return (
     <aside className="visual-rail">
@@ -164,7 +167,7 @@ export function VisualRail({
         )}
 
         {/* Standard 16:9 Pure Visual Cards (No title or description) */}
-        {hooks.map((hook, index) => {
+        {sortedHooks.map((hook, index) => {
           const color = getHookColor(index);
           const isSelected = selectedHookId === hook.id;
 
@@ -173,7 +176,7 @@ export function VisualRail({
               className={`poster-card-16-9 ${isSelected ? "selected" : ""} status-${hook.status}`}
               key={hook.id}
               onClick={() => onSelectHook(isSelected ? null : hook)}
-              title="Click to highlight matching text on page"
+              title="Click to highlight and jump to matching text on page"
               style={{
                 "--accent-color": color.dot,
                 "--accent-bg": color.bg,
@@ -184,9 +187,13 @@ export function VisualRail({
                 {hook.imageUrl ? (
                   <img
                     src={hook.imageUrl}
-                    alt={hook.title}
+                    alt=""
                     className="poster-img pop-in"
                     loading="lazy"
+                    onError={e => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = generateFallbackSvg(hook.title, color.dot, hook.kind);
+                    }}
                   />
                 ) : (
                   <div className="poster-placeholder">

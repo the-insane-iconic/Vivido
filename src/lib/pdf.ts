@@ -190,18 +190,17 @@ export function renderPage(
     // High-DPI viewport for razor-sharp canvas rendering
     const renderViewport = page.getViewport({ scale: scale * dpr, rotation });
 
-    const context = canvas.getContext("2d", { alpha: false });
-    if (!context) throw new Error("Canvas 2D context unavailable");
+    // Use an offscreen canvas to render the PDF graphics in memory.
+    // The currently displayed canvas remains visible until the new render is 100% finished.
+    const offscreenCanvas = document.createElement("canvas");
+    offscreenCanvas.width = Math.ceil(renderViewport.width);
+    offscreenCanvas.height = Math.ceil(renderViewport.height);
+    const offscreenContext = offscreenCanvas.getContext("2d", { alpha: false });
+    if (!offscreenContext) throw new Error("Offscreen 2D context unavailable");
 
-    // Dimensions
-    canvas.width = Math.ceil(renderViewport.width);
-    canvas.height = Math.ceil(renderViewport.height);
-    canvas.style.width = `${Math.ceil(cssViewport.width)}px`;
-    canvas.style.height = `${Math.ceil(cssViewport.height)}px`;
-
-    // Render Canvas
+    // Render Canvas into offscreen memory buffer
     renderTask = page.render({
-      canvasContext: context,
+      canvasContext: offscreenContext,
       viewport: renderViewport,
     });
 
@@ -216,26 +215,43 @@ export function renderPage(
 
     if (cancelled) return { width: 0, height: 0, cssWidth: 0, cssHeight: 0 };
 
-    // Render Interactive TextLayer (for cursor selection, copy, and search highlight)
-    if (textLayerContainer) {
-      textLayerContainer.innerHTML = "";
-      textLayerContainer.style.width = `${Math.ceil(cssViewport.width)}px`;
-      textLayerContainer.style.height = `${Math.ceil(cssViewport.height)}px`;
-      textLayerContainer.style.setProperty("--scale-factor", `${scale}`);
+    // Atomically transfer rendered offscreen buffer onto visible canvas in one animation tick
+    const context = canvas.getContext("2d", { alpha: false });
+    if (context) {
+      canvas.width = Math.ceil(renderViewport.width);
+      canvas.height = Math.ceil(renderViewport.height);
+      canvas.style.width = `${Math.ceil(cssViewport.width)}px`;
+      canvas.style.height = `${Math.ceil(cssViewport.height)}px`;
+      context.drawImage(offscreenCanvas, 0, 0);
+    }
 
+    // Render Interactive TextLayer (staged off-DOM first, then swapped seamlessly)
+    if (textLayerContainer) {
       try {
         const textContent = await page.getTextContent();
         if (cancelled) return { width: 0, height: 0, cssWidth: 0, cssHeight: 0 };
 
+        const tempStage = document.createElement("div");
+        tempStage.className = "textLayer";
+        tempStage.style.width = `${Math.ceil(cssViewport.width)}px`;
+        tempStage.style.height = `${Math.ceil(cssViewport.height)}px`;
+        tempStage.style.setProperty("--scale-factor", `${scale}`);
+
         textLayerInstance = new (pdfjsLib as any).TextLayer({
           textContentSource: textContent,
-          container: textLayerContainer,
+          container: tempStage,
           viewport: cssViewport,
         });
 
         await textLayerInstance.render();
+
+        if (!cancelled && textLayerContainer) {
+          textLayerContainer.replaceChildren(...Array.from(tempStage.childNodes));
+          textLayerContainer.style.width = `${Math.ceil(cssViewport.width)}px`;
+          textLayerContainer.style.height = `${Math.ceil(cssViewport.height)}px`;
+          textLayerContainer.style.setProperty("--scale-factor", `${scale}`);
+        }
       } catch (err: any) {
-        // Text layer failures shouldn't crash the canvas render
         console.warn("TextLayer render warning:", err);
       }
     }

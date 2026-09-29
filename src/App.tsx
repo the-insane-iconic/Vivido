@@ -411,6 +411,7 @@ function App() {
               totalCount: hooks.length,
             }}
             currentPage={reader.currentPage}
+            pageText={reader.page?.text}
           />
         )}
       </section>

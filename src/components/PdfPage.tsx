@@ -49,9 +49,12 @@ export function PdfPage({
     spans.forEach(span => {
       span.classList.remove("vivido-highlighter-span", "highlight-active-focus");
       span.style.removeProperty("background");
+      span.style.removeProperty("background-color");
       span.style.removeProperty("mix-blend-mode");
       span.style.removeProperty("box-shadow");
       span.removeAttribute("data-vivido-hook");
+      span.removeAttribute("data-vivido-color-idx");
+      span.removeAttribute("title");
       span.onclick = null;
     });
 
@@ -69,13 +72,21 @@ export function PdfPage({
 
     const lowerPage = aggregatedText.toLowerCase();
 
-    pageHooks.forEach((hook, hookIndex) => {
+    // 1. Sort hooks by top-to-bottom reading order on this page so Card 1 matches Highlight 1, Card 2 matches Highlight 2, etc.
+    const indexedHooks = pageHooks.map(hook => {
+      const cleanSource = (hook.sourceText || "").toLowerCase().replace(/["\n\r]/g, " ").replace(/\s+/g, " ").trim();
+      let pos = lowerPage.indexOf(cleanSource);
+      if (pos === -1 && cleanSource.length > 20) {
+        pos = lowerPage.indexOf(cleanSource.slice(0, 20));
+      }
+      return { hook, pos: pos !== -1 ? pos : 999999, cleanSource };
+    }).sort((a, b) => a.pos - b.pos);
+
+    indexedHooks.forEach(({ hook, cleanSource }, hookIndex) => {
       if (!hook.sourceText || hook.sourceText.trim().length < 5) return;
       const color = getHookColor(hookIndex);
       const isSelected = selectedHookId === hook.id;
 
-      // Clean source text into comparable string
-      const cleanSource = hook.sourceText.toLowerCase().replace(/["\n\r]/g, " ").replace(/\s+/g, " ").trim();
       let matchStart = -1;
       let matchEnd = -1;
 
@@ -106,28 +117,34 @@ export function PdfPage({
         }
       }
 
+      const applySpanStyle = (span: HTMLElement) => {
+        span.classList.add("vivido-highlighter-span");
+        span.setAttribute("data-vivido-hook", hook.id);
+        span.setAttribute("data-vivido-color-idx", String(hookIndex + 1));
+        span.style.backgroundColor = color.bg;
+        span.style.removeProperty("mix-blend-mode");
+        span.style.borderRadius = "3px";
+        span.style.cursor = "pointer";
+        span.title = `Passage [${hookIndex + 1}] — matches Visual Card #${hookIndex + 1}`;
+
+        if (isSelected) {
+          span.classList.add("highlight-active-focus");
+          span.style.boxShadow = `0 0 0 2px ${color.border}, 0 2px 10px ${color.bg}`;
+        } else {
+          span.style.boxShadow = `0 1px 0 0 ${color.border}60`;
+        }
+
+        span.onclick = e => {
+          e.stopPropagation();
+          onSelectHook?.(hook);
+        };
+      };
+
       // Apply highlighter to all overlapping text spans
       if (matchStart !== -1 && matchEnd > matchStart) {
         spanPositions.forEach(({ span, start, end }) => {
           if (Math.max(start, matchStart) < Math.min(end, matchEnd)) {
-            span.classList.add("vivido-highlighter-span");
-            span.setAttribute("data-vivido-hook", hook.id);
-            span.style.background = color.bg;
-            span.style.mixBlendMode = "multiply";
-            span.style.borderRadius = "2px";
-            span.style.cursor = "pointer";
-
-            if (isSelected) {
-              span.classList.add("highlight-active-focus");
-              span.style.boxShadow = `0 0 0 2px ${color.border}, 0 2px 10px ${color.bg}`;
-            } else {
-              span.style.boxShadow = `0 0 0 1px ${color.bg}`;
-            }
-
-            span.onclick = e => {
-              e.stopPropagation();
-              onSelectHook?.(hook);
-            };
+            applySpanStyle(span);
           }
         });
       } else {
@@ -138,24 +155,7 @@ export function PdfPage({
             const spanText = (span.textContent || "").toLowerCase();
             const matchingWords = words.filter(w => spanText.includes(w)).length;
             if (matchingWords >= 2 || (words.length <= 4 && matchingWords >= 1)) {
-              span.classList.add("vivido-highlighter-span");
-              span.setAttribute("data-vivido-hook", hook.id);
-              span.style.background = color.bg;
-              span.style.mixBlendMode = "multiply";
-              span.style.borderRadius = "2px";
-              span.style.cursor = "pointer";
-
-              if (isSelected) {
-                span.classList.add("highlight-active-focus");
-                span.style.boxShadow = `0 0 0 2px ${color.border}, 0 2px 10px ${color.bg}`;
-              } else {
-                span.style.boxShadow = `0 0 0 1px ${color.bg}`;
-              }
-
-              span.onclick = e => {
-                e.stopPropagation();
-                onSelectHook?.(hook);
-              };
+              applySpanStyle(span);
             }
           });
         }
@@ -204,7 +204,16 @@ export function PdfPage({
     applyHighlights();
   }, [applyHighlights, pageHooks, selectedHookId]);
 
-  // Initial render or rotation change (immediate)
+  // Scroll active hook into view when selected from the sidebar
+  useEffect(() => {
+    if (!selectedHookId || !textLayerRef.current) return;
+    const targetSpan = textLayerRef.current.querySelector(`[data-vivido-hook="${selectedHookId}"]`);
+    if (targetSpan) {
+      targetSpan.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [selectedHookId]);
+
+  // Initial render or rotation change (runs only on mount or page/rotation changes)
   useEffect(() => {
     if (!pdf) return;
     executeRender(scale, rotation);
@@ -212,10 +221,10 @@ export function PdfPage({
       renderHandleRef.current?.cancel();
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
-  }, [pdf, pageNumber, rotation, executeRender, scale]);
+  }, [pdf, pageNumber, rotation, executeRender]);
 
   // Smooth Zoom Handling:
-  // When scale changes, apply instant GPU CSS transform, then debounce the crisp re-render
+  // Instantly scales visible canvas via CSS GPU transform, then debounces high-res rasterization
   useEffect(() => {
     if (!pdf || renderedScale === scale) return;
 
@@ -226,7 +235,7 @@ export function PdfPage({
     // Debounce the heavy canvas re-render so rapid zoom steps don't stutter
     debounceTimerRef.current = setTimeout(() => {
       executeRender(scale, rotation);
-    }, 220);
+    }, 180);
 
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);

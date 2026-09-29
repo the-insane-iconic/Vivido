@@ -53,6 +53,30 @@ export function PdfViewerContainer({
   }, [scale, onZoomChange]);
 
   const lastScrolledPageRef = useRef<number | null>(null);
+  const isRescalingRef = useRef(false);
+  const prevScaleRef = useRef(scale);
+
+  // When zooming or fitting to width/page, keep the current page strictly anchored in the viewport
+  // and prevent IntersectionObserver from prematurely switching the current page
+  useEffect(() => {
+    if (prevScaleRef.current !== scale && containerRef.current) {
+      prevScaleRef.current = scale;
+      isRescalingRef.current = true;
+
+      // Keep the active reading page anchored in place
+      const targetElement = containerRef.current.querySelector(`#pdf-page-${currentPage}`) as HTMLElement | null;
+      if (targetElement) {
+        targetElement.scrollIntoView({ behavior: "instant" as ScrollBehavior, block: "start" });
+      }
+
+      // Re-enable observer after layout reflow settles
+      const timer = setTimeout(() => {
+        isRescalingRef.current = false;
+      }, 350);
+
+      return () => clearTimeout(timer);
+    }
+  }, [scale, currentPage]);
 
   // In continuous scroll mode, track which page is currently in view
   useEffect(() => {
@@ -60,6 +84,8 @@ export function PdfViewerContainer({
 
     observerRef.current = new IntersectionObserver(
       entries => {
+        if (isRescalingRef.current) return; // Ignore reflow-induced visibility changes during zoom/fit
+
         const visible = entries.filter(e => e.isIntersecting);
         if (visible.length > 0) {
           visible.sort((a, b) => b.intersectionRatio - a.intersectionRatio);
@@ -87,7 +113,7 @@ export function PdfViewerContainer({
   // When jumping to a page via page counter, thumbnail or search, scroll to that page
   useEffect(() => {
     if (viewMode === "continuous" && containerRef.current) {
-      // If this page update was triggered by the user scrolling naturally, do not jerk the scroll position
+      if (isRescalingRef.current) return;
       if (lastScrolledPageRef.current === currentPage) {
         lastScrolledPageRef.current = null;
         return;
