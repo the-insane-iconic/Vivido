@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -14,8 +14,12 @@ import {
   Sparkles,
   Upload,
   Scroll,
-  FileText
+  FileText,
+  SunMoon,
+  Coffee,
+  Moon
 } from "lucide-react";
+import type { PageThemeConfig } from "../types";
 
 export function ChromePdfToolbar({
   fileName,
@@ -36,7 +40,9 @@ export function ChromePdfToolbar({
   onToggleRail,
   onOpenSearch,
   onOpenGallery,
-  onOpenFile
+  onOpenFile,
+  pageTheme,
+  onThemeChange,
 }: {
   fileName: string;
   pageCount: number;
@@ -57,12 +63,29 @@ export function ChromePdfToolbar({
   onOpenSearch: () => void;
   onOpenGallery: () => void;
   onOpenFile: () => void;
+  pageTheme: PageThemeConfig;
+  onThemeChange: (theme: PageThemeConfig) => void;
 }) {
   const [pageInput, setPageInput] = useState(String(currentPage));
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const themeMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setPageInput(String(currentPage));
   }, [currentPage]);
+
+  // Close theme popover on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (themeMenuRef.current && !themeMenuRef.current.contains(e.target as Node)) {
+        setShowThemeMenu(false);
+      }
+    };
+    if (showThemeMenu) {
+      document.addEventListener("mousedown", handleOutsideClick);
+      return () => document.removeEventListener("mousedown", handleOutsideClick);
+    }
+  }, [showThemeMenu]);
 
   // Keep input in sync with currentPage when not editing
   const handlePageBlur = () => {
@@ -225,6 +248,82 @@ export function ChromePdfToolbar({
           >
             {viewMode === "continuous" ? <Scroll size={15} /> : <FileText size={15} />}
           </button>
+
+          {/* Reader Comfort Page Theme Switcher & Intensity Slider */}
+          <div className="chrome-theme-popover-wrap" ref={themeMenuRef}>
+            <button
+              className={`chrome-btn ${pageTheme.mode !== "default" ? "active" : ""}`}
+              title="Reader Comfort: Warm Coffee / Dark Mode"
+              onClick={() => setShowThemeMenu(v => !v)}
+              aria-label="Reader comfort page themes"
+              disabled={!pageCount}
+            >
+              <SunMoon size={15} />
+            </button>
+
+            {showThemeMenu && (
+              <div className="chrome-theme-popover">
+                <div className="theme-popover-title">
+                  <SunMoon size={15} />
+                  <span>Reader Page Theme</span>
+                </div>
+
+                <div className="theme-mode-grid">
+                  <button
+                    className={`theme-mode-btn ${pageTheme.mode === "default" ? "active" : ""}`}
+                    onClick={() => onThemeChange({ ...pageTheme, mode: "default" })}
+                  >
+                    <div className="theme-preview-dot" style={{ backgroundColor: "#ffffff" }} />
+                    <span>Default</span>
+                  </button>
+
+                  <button
+                    className={`theme-mode-btn ${pageTheme.mode === "coffee" ? "active" : ""}`}
+                    onClick={() => onThemeChange({ ...pageTheme, mode: "coffee" })}
+                  >
+                    <div className="theme-preview-dot" style={{ backgroundColor: "#eeddc5", border: "1px solid #d4c2a5" }}>
+                      <Coffee size={11} color="#6d4c41" />
+                    </div>
+                    <span>Coffee</span>
+                  </button>
+
+                  <button
+                    className={`theme-mode-btn ${pageTheme.mode === "dark" ? "active" : ""}`}
+                    onClick={() => onThemeChange({ ...pageTheme, mode: "dark" })}
+                  >
+                    <div className="theme-preview-dot" style={{ backgroundColor: "#14171d", border: "1px solid #334155" }}>
+                      <Moon size={11} color="#94a3b8" />
+                    </div>
+                    <span>Dark</span>
+                  </button>
+                </div>
+
+                {pageTheme.mode !== "default" && (
+                  <div className="theme-slider-group">
+                    <div className="theme-slider-header">
+                      <span className="theme-slider-label">
+                        {pageTheme.mode === "coffee" ? "Coffee Warmth:" : "Dark Contrast:"}
+                      </span>
+                      <span className="theme-slider-val">{Math.round(pageTheme.intensity * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={20}
+                      max={100}
+                      value={Math.round(pageTheme.intensity * 100)}
+                      onChange={e =>
+                        onThemeChange({
+                          ...pageTheme,
+                          intensity: Number(e.target.value) / 100,
+                        })
+                      }
+                      className="theme-intensity-slider"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

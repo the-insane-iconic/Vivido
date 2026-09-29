@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Sparkles, Upload, BookOpen } from "lucide-react";
-import type { JobEvent, PageAnalysis, ReaderPage, VisualHook, ProviderStatus, VisualBible } from "./types";
+import type { JobEvent, PageAnalysis, ReaderPage, VisualHook, ProviderStatus, VisualBible, PageThemeConfig } from "./types";
 import { api, connectEvents } from "./lib/api";
 import { localStore } from "./lib/idb";
 import { usePdfReader } from "./hooks/usePdfReader";
@@ -28,6 +28,20 @@ function App() {
   const [zoom, setZoom] = useState(1.15);
   const [rotation, setRotation] = useState(0);
   const [viewMode, setViewMode] = useState<"continuous" | "single">("continuous");
+  const [pageTheme, setPageTheme] = useState<PageThemeConfig>(() => {
+    try {
+      const saved = localStorage.getItem("vivido_page_theme");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return { mode: "default", intensity: 0.85 };
+  });
+
+  const handleThemeChange = (newTheme: PageThemeConfig) => {
+    setPageTheme(newTheme);
+    try {
+      localStorage.setItem("vivido_page_theme", JSON.stringify(newTheme));
+    } catch {}
+  };
   const [showRail, setShowRail] = useState(true);
   const [showSidebar, setShowSidebar] = useState(true);
   const [autoGenerate, setAutoGenerate] = useState(true);
@@ -332,6 +346,8 @@ function App() {
         onOpenSearch={() => setShowSearch(true)}
         onOpenGallery={() => setShowGallery(true)}
         onOpenFile={() => fileRef.current?.click()}
+        pageTheme={pageTheme}
+        onThemeChange={handleThemeChange}
       />
 
       {/* Main Workspace */}
@@ -345,8 +361,13 @@ function App() {
           activePagesWithHooks={activePagesWithHooks}
         />
 
-        {/* Chrome-Styled Dark Reading Stage */}
-        <section className="reader-stage chrome-viewer-stage-wrap" ref={readerStageRef}>
+        {/* Chrome-Styled Reading Stage with Eye Comfort Theme */}
+        <section
+          className="reader-stage chrome-viewer-stage-wrap"
+          ref={readerStageRef}
+          data-page-theme={pageTheme.mode}
+          style={{ "--theme-intensity": pageTheme.intensity } as React.CSSProperties}
+        >
           {!reader.pageCount ? (
             <div className="reader-empty">
               <div className="reader-empty-icon">

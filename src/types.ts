@@ -144,3 +144,11 @@ export type SemanticSearchResult = {
   hook?: VisualHook;
   entity?: BibleEntity;
 };
+
+export type PageThemeMode = "default" | "coffee" | "dark";
+
+export interface PageThemeConfig {
+  mode: PageThemeMode;
+  intensity: number; // 0 to 1 (controls coffee warmth or dark contrast)
+}
+

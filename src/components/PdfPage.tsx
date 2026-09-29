@@ -276,7 +276,7 @@ export const PdfPage = memo(function PdfPage({
           className="page-surface-container"
           style={{
             transform: zoomRatio !== 1 ? `scale(${zoomRatio})` : undefined,
-            transformOrigin: "top left",
+            transformOrigin: "center top",
             width: baseDimensions ? `${Math.round(baseDimensions.width * renderedScale)}px` : undefined,
             height: baseDimensions ? `${Math.round(baseDimensions.height * renderedScale)}px` : undefined,
           }}
