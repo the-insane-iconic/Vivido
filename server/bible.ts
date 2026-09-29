@@ -171,16 +171,26 @@ export class VisualBibleManager {
     const s = setting.toLowerCase();
     const t = tone.toLowerCase();
 
-    if (g.includes("noir") || t.includes("dark") || t.includes("cynical")) {
-      this.bible.style.lightingApproach = "Dramatic chiaroscuro shadows, high-contrast venetian blinds lighting";
-      this.bible.style.colorPalette = "Muted sepia, charcoal, and warm amber streetlamp highlights";
-    } else if (g.includes("sci-fi") || g.includes("speculative")) {
-      this.bible.style.lightingApproach = "Crisp volumetric bioluminescence and directional neon rim lights";
+    if (g.includes("noir") || t.includes("dark") || t.includes("cynical") || t.includes("mystery")) {
+      this.bible.style.lightingApproach = "Dramatic chiaroscuro shadows, high-contrast atmospheric directional light";
+      this.bible.style.colorPalette = "Muted charcoal, deep shadows, and warm amber streetlamp highlights";
+      this.bible.style.historicalPeriod = "Atmospheric noir cinematic period";
+    } else if (g.includes("sci-fi") || g.includes("speculative") || g.includes("cyber")) {
+      this.bible.style.lightingApproach = "Crisp volumetric bioluminescence and directional architectural rim lights";
       this.bible.style.colorPalette = "Deep obsidian, cyan, electric violet, and cool titanium";
-    } else if (g.includes("classic") || g.includes("historical") || s.includes("195") || s.includes("new york")) {
-      this.bible.style.lightingApproach = "Authentic Kodachrome film stock, soft natural diffuse window daylight";
-      this.bible.style.colorPalette = "Warm mid-century nostalgic palette: dusty teal, camel wool, brick red, muted ivory";
-      this.bible.style.historicalPeriod = "Mid-20th century authentic archival treatment";
+      this.bible.style.historicalPeriod = "Speculative futuristic or cybernetic era";
+    } else if (g.includes("fantasy") || g.includes("myth") || g.includes("epic")) {
+      this.bible.style.lightingApproach = "Ethereal golden-hour sunbeams, atmospheric hearth glow, soft mist";
+      this.bible.style.colorPalette = "Rich forest green, burnished gold, aged stone, deep velvet crimson";
+      this.bible.style.historicalPeriod = "Timeless mythic / historical fantasy era";
+    } else if (g.includes("history") || g.includes("historical") || g.includes("period")) {
+      this.bible.style.lightingApproach = "Authentic natural window daylight, soft candle/lantern illumination";
+      this.bible.style.colorPalette = "Rich period-authentic palette, textured linen, aged wood, earthen tones";
+      this.bible.style.historicalPeriod = "Authentic historical period corresponding to narrative";
+    } else {
+      this.bible.style.lightingApproach = "35mm film still, natural volumetric lighting with authentic depth of field";
+      this.bible.style.colorPalette = "Harmonious organic color grading tailored to narrative atmosphere";
+      this.bible.style.historicalPeriod = "Authentic to narrative setting";
     }
   }
 

@@ -222,7 +222,7 @@ export function VisualRail({
                       ) : hook.status === "running" ? (
                         <>
                           <LoaderCircle size={26} className="spin" style={{ color: color.dot }} />
-                          <span className="status-label shimmer">Painting 16:9 visual…</span>
+                          <span className="status-label shimmer">Synthesizing 16:9 photograph…</span>
                         </>
                       ) : (
                         <>

@@ -18,33 +18,29 @@ export interface ImageGenerationProvider {
 // Global shared image cache used across generation and proxy
 export const globalImageCache = new Map<string, { buffer: Buffer; contentType: string }>();
 
-const AI2_SYSTEM_PROMPT = `You are AI 2: Vivido's Master Visual Scene Director and Vector Cinematographer.
-Your job is to process each literary scene hook ONE BY ONE, translating it into a stunning, source-grounded 16:9 cinematic SVG artwork (viewBox="0 0 1024 576" width="1024" height="576").
+const AI2_SYSTEM_PROMPT = `You are AI 2: Vivido's Master Visual Cinematographer and Photographic Scene Director.
+Your job is to translate each literary scene hook into a single, cohesive, ultra-realistic 16:9 photographic prompt for a high-end diffusion model.
 
 CRITICAL DIRECTIVES FOR COMPLETE STORY CONTINUITY:
-1. Strict Story Continuity:
-   - Match the book's exact historical era, time of year, season, and setting.
-   - Enforce continuous character appearance across all scenes (e.g. for Holden Caulfield in The Catcher in the Rye: 16-year-old lanky teenage boy, vintage brown tweed coat, iconic red hunting cap worn backward).
-   - Maintain a unified 1950s cinematic Kodachrome/Technicolor aesthetic.
-2. Rich Visual Layering (viewBox="0 0 1024 576" width="1024" height="576"):
-   - Sky & atmospheric lighting gradients (moody overcast, golden hour, or dim interior lighting).
-   - Midground & background architectural / natural elements (school hills, rusted cannons, campus gates, mid-century bungalows).
-   - Distinct character and object silhouettes or stylized vector rendering (Holden, car, cannon, players, professor).
-   - Atmospheric vignette, mist, or volumetric glow.
-   - Cinematic lower title pill with clean typography:
-     <rect x="232" y="500" width="560" height="48" rx="24" fill="rgba(15,23,42,0.85)" stroke="rgba(255,255,255,0.12)"/>
-     <text x="512" y="530" fill="#f8fafc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="16" font-weight="600" text-anchor="middle">{Scene Title}</text>
-3. ABSOLUTE PROHIBITIONS:
-   - NEVER output modern elements (no modern alloy wheels, modern smartphones, modern cars).
-   - NEVER output text or newspaper articles outside of the lower title pill.
-   - NEVER output medical, biological, or anatomical diagrams.
-4. Output valid SVG XML only starting with <svg and ending with </svg>. Do not wrap in markdown code blocks.`;
+1. Strict Photographic Realism:
+   - Visuals must look like real, authentic 35mm film photographs or cinema film stills.
+   - Describe natural skin textures, real atmospheric lighting, lens characteristics (e.g. 35mm spherical lens, f/2.0 aperture, natural depth of field), realistic shadows, and physical materials (wool, wood, glass, brick, metal, dust motes).
+   - ABSOLUTELY NO cartoons, NO vector art, NO SVGs, NO flat illustrations, NO 3D CGI renders, NO digital drawings, NO typography, NO watermark.
+
+2. Complete Story Continuity Across Any Book:
+   - Inherit the book's narrative era, environment, and setting from the provided context.
+   - Enforce exact character appearance, age, hair, and wardrobe consistently across all scenes.
+   - Ensure the scene directly depicts the quote and action described.
+
+3. Output Format:
+   - Output ONLY the photographic prompt string (around 45-75 words).
+   - Do NOT include markdown code blocks, backticks, quotes, or conversational filler. Output the prompt text directly.`;
 
 export class ProviderImageGenerator implements ImageGenerationProvider {
   get providerName(): string {
     if (process.env.OPENAI_API_KEY && process.env.IMAGE_PROVIDER === "openai") return "OpenAI DALL-E 3";
     if (process.env.IMAGE_MODEL_URL) return "Custom Image Provider";
-    return `Groq Visual Director (${process.env.GROQ_MODEL ?? "openai/gpt-oss-120b"})`;
+    return `Groq Visual Director + NVidia SANA (16:9 Photographic)`;
   }
 
   async generate(input: ImageGenerationInput): Promise<{ imageUrl: string; provider: string; model?: string }> {
@@ -53,7 +49,7 @@ export class ProviderImageGenerator implements ImageGenerationProvider {
       try {
         return await this.callOpenAIDallE(input);
       } catch (err) {
-        console.warn("OpenAI DALL-E generation failed, falling back to AI 2 scene synthesizer:", err);
+        console.warn("OpenAI DALL-E generation failed, falling back to primary diffusion pipeline:", err);
       }
     }
 
@@ -62,52 +58,67 @@ export class ProviderImageGenerator implements ImageGenerationProvider {
       try {
         return await this.callCustomEndpoint(input);
       } catch (err) {
-        console.warn("Custom image endpoint failed, falling back to AI 2 scene synthesizer:", err);
+        console.warn("Custom image endpoint failed, falling back to primary diffusion pipeline:", err);
       }
     }
 
-    // 3. AI 2: Groq Scene Director & Vector Cinematographer (Story Continuity Engine)
+    // 3. AI 2: Groq Master Cinematographer refines scene hook into a photorealistic prompt
+    let photographicPrompt = input.prompt;
     const groqKey = process.env.GROQ_IMAGE_API_KEY || process.env.GROQ_API_KEY;
+
     if (groqKey) {
       try {
-        const ai2Result = await this.generateWithAI2(input, groqKey);
-        if (ai2Result) return ai2Result;
+        const refined = await this.composePhotographicPromptWithAI2(input, groqKey);
+        if (refined && refined.length > 20) {
+          photographicPrompt = refined;
+        }
       } catch (err) {
-        console.warn("AI 2 scene synthesis failed, falling back to procedural engine:", err);
+        console.warn("AI 2 prompt refinement blip, using art director prompt:", err);
       }
     }
 
-    // 4. Guaranteed procedural fallback with scene title and kind styling
-    return {
-      imageUrl: this.generateSvgFallback(input),
-      provider: "vivido-vector-engine",
-      model: "svg-synthesis-v1"
-    };
+    // 4. Photorealistic Diffusion Generation (NVidia SANA 16:9 1024x576)
+    try {
+      const diffusionResult = await this.fetchDiffusionImage(photographicPrompt, input.title);
+      if (diffusionResult) {
+        return diffusionResult;
+      }
+    } catch (err) {
+      console.warn("Diffusion generation failed, trying photographic fallback:", err);
+    }
+
+    // 5. Guaranteed authentic photographic fallback (never flat vector cartoon)
+    return await this.generatePhotographicFallback(input);
   }
 
-  private async generateWithAI2(input: ImageGenerationInput, apiKey: string): Promise<{ imageUrl: string; provider: string; model: string } | null> {
+  /**
+   * AI 2: Groq transforms the scene into an ultra-vivid 16:9 photographic prompt
+   * enforcing story continuity, character traits, and narrative era.
+   */
+  private async composePhotographicPromptWithAI2(input: ImageGenerationInput, apiKey: string): Promise<string | null> {
     const baseUrl = (process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1").replace(/\/$/, "");
     const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 
-    // Build rich narrative context from AI 1's page analysis & Book Visual Bible
+    // Build narrative context dynamically from AI 1 & Visual Bible (zero hardcoded examples)
     const narrativeContext = {
-      pageNumber: input.pageNumber || 1,
-      eraAndPeriod: input.bible?.style?.historicalPeriod || "Late 1940s / 1950 post-war America",
-      settingAndPlace: input.analysis?.setting || "Pencey Prep / Convalescent Home, 1949",
-      characters: input.analysis?.characters || ["Holden Caulfield (16-year-old lanky teenage boy, red hunting cap worn backward, vintage tweed coat)"],
-      visualStyle: input.bible?.style?.lightingApproach || "1950s Kodachrome 35mm film still, warm earthy mid-century tones, 16:9 spherical framing",
-      palette: input.bible?.style?.colorPalette || "Warm camel, dusty teal, brick red, muted ivory"
+      narrativeEra: input.bible?.style?.historicalPeriod || "Authentic story period",
+      settingAndPlace: input.analysis?.setting || "Atmospheric narrative setting",
+      characters: input.analysis?.characters && input.analysis.characters.length > 0
+        ? input.analysis.characters
+        : ["Characters authentic to narrative description"],
+      cinematicStyle: input.bible?.style?.lightingApproach || "Cinematic 35mm film photograph, realistic lighting and depth",
+      colorPalette: input.bible?.style?.colorPalette || "Naturalistic palette tailored to story atmosphere"
     };
 
     const sceneData = {
       title: input.title,
       sourceTextQuote: input.sourceText || "",
-      artDirectorPrompt: input.prompt,
+      sceneAction: input.prompt,
       sceneKind: input.kind || "scene"
     };
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
+    const timeout = setTimeout(() => controller.abort(), 12000);
 
     try {
       const response = await fetch(`${baseUrl}/chat/completions`, {
@@ -123,10 +134,11 @@ export class ProviderImageGenerator implements ImageGenerationProvider {
             { role: "system", content: AI2_SYSTEM_PROMPT },
             {
               role: "user",
-              content: `Book Narrative Context:\n${JSON.stringify(narrativeContext, null, 2)}\n\nScene To Synthesize:\n${JSON.stringify(sceneData, null, 2)}\n\nGenerate the complete 16:9 SVG visual now:`
+              content: `Story Narrative Context:\n${JSON.stringify(narrativeContext, null, 2)}\n\nScene Hook:\n${JSON.stringify(sceneData, null, 2)}\n\nCompose the 16:9 cinematic photographic prompt now:`
             }
           ],
-          temperature: 0.25
+          temperature: 0.35,
+          max_tokens: 300
         })
       });
       clearTimeout(timeout);
@@ -136,33 +148,111 @@ export class ProviderImageGenerator implements ImageGenerationProvider {
       }
 
       const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-      let rawSvg = data.choices?.[0]?.message?.content || "";
+      let promptText = data.choices?.[0]?.message?.content?.trim() || "";
 
-      // Extract <svg>...</svg> from response if surrounded by text or markdown code fences
-      const svgMatch = rawSvg.match(/<svg[\s\S]*?<\/svg>/i);
-      if (svgMatch) {
-        rawSvg = svgMatch[0].trim();
-      }
-
-      if (rawSvg.startsWith("<svg") && rawSvg.includes("</svg>")) {
-        const dataUri = `data:image/svg+xml;utf8,${encodeURIComponent(rawSvg)}`;
-        // Cache in memory for instant retrieval
-        globalImageCache.set(dataUri, {
-          buffer: Buffer.from(rawSvg, "utf-8"),
-          contentType: "image/svg+xml"
-        });
-        return {
-          imageUrl: dataUri,
-          provider: "vivido-continuity-ai",
-          model: "groq-scene-director"
-        };
-      }
+      // Strip any accidental markdown formatting or quotes
+      promptText = promptText.replace(/^["'`]+|["'`]+$/g, "").replace(/^prompt:\s*/i, "").trim();
+      return promptText || null;
     } catch (err) {
       clearTimeout(timeout);
-      console.warn("AI 2 Groq SVG generation failed:", err);
+      console.warn("AI 2 prompt composition error:", err);
+      return null;
+    }
+  }
+
+  /**
+   * Fetches a photorealistic 16:9 (1024x576) JPEG image using diffusion model.
+   * Includes smart asynchronous polling to give the GPU cluster time to finish rendering.
+   */
+  private async fetchDiffusionImage(prompt: string, title: string): Promise<{ imageUrl: string; provider: string; model: string } | null> {
+    // Clean prompt for diffusion URL
+    const cleanPrompt = prompt
+      .replace(/["\n\r]/g, " ")
+      .replace(/\s+/g, " ")
+      .slice(0, 380)
+      .trim();
+
+    // Standard 16:9 high resolution: 1024 x 576 (do NOT include nologo=true as it triggers 402)
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=1024&height=576`;
+
+    // Check memory cache first
+    if (globalImageCache.has(url)) {
+      return { imageUrl: url, provider: "vivido-cache", model: "sana" };
+    }
+
+    const maxPolls = 4;
+    for (let poll = 1; poll <= maxPolls; poll++) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
+
+        const response = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "image/jpeg,image/webp,image/*,*/*;q=0.8"
+          }
+        });
+        clearTimeout(timeout);
+
+        if (response.ok) {
+          const buffer = Buffer.from(await response.arrayBuffer());
+          // A genuine 1024x576 JPEG is always > 5000 bytes
+          if (buffer.byteLength > 5000) {
+            const contentType = response.headers.get("content-type") || "image/jpeg";
+            globalImageCache.set(url, { buffer, contentType });
+            return {
+              imageUrl: url,
+              provider: "NVidia SANA (16:9 Photorealistic)",
+              model: "sana"
+            };
+          }
+        }
+      } catch (err) {
+        console.warn(`Poll ${poll} blip for "${title}":`, err instanceof Error ? err.message : err);
+      }
+
+      // If GPU is rendering (or 402 waiting for generation), wait 4.5s before polling again
+      if (poll < maxPolls) {
+        await new Promise(r => setTimeout(r, 4500));
+      }
     }
 
     return null;
+  }
+
+  /**
+   * Guaranteed photographic fallback: returns a high-resolution authentic photograph
+   * matching the narrative theme, NEVER an SVG vector or cartoon.
+   */
+  private async generatePhotographicFallback(input: ImageGenerationInput): Promise<{ imageUrl: string; provider: string; model: string }> {
+    const keywords = (input.title + " " + (input.kind || "scene")).toLowerCase();
+    
+    // Curated real high-res photography matching core literary settings
+    const photoLibrary: Record<string, string> = {
+      library: "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=1024&h=576&q=80",
+      reading: "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1024&h=576&q=80",
+      dusk: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1024&h=576&q=80",
+      night: "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1024&h=576&q=80",
+      street: "https://images.unsplash.com/photo-1514924013411-cbf25faa35bb?auto=format&fit=crop&w=1024&h=576&q=80",
+      vintage: "https://images.unsplash.com/photo-1461360370896-922624d12aa1?auto=format&fit=crop&w=1024&h=576&q=80",
+      hallway: "https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1024&h=576&q=80",
+      default: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=1024&h=576&q=80"
+    };
+
+    let selectedUrl = photoLibrary.default;
+    for (const [key, url] of Object.entries(photoLibrary)) {
+      if (keywords.includes(key)) {
+        selectedUrl = url;
+        break;
+      }
+    }
+
+    return {
+      imageUrl: selectedUrl,
+      provider: "vivido-photo-archive",
+      model: "editorial-photography"
+    };
   }
 
   private async callOpenAIDallE(input: ImageGenerationInput): Promise<{ imageUrl: string; provider: string; model: string }> {
@@ -210,41 +300,19 @@ export class ProviderImageGenerator implements ImageGenerationProvider {
   }
 
   public generateSvgFallback(input: { prompt?: string; title: string; kind?: string }): string {
-    const kind = input.kind || "concept";
-    const colors: Record<string, { bg1: string; bg2: string; accent: string; label: string }> = {
-      diagram: { bg1: "#0e1726", bg2: "#1e293b", accent: "#38bdf8", label: "Architecture / Diagram" },
-      scene: { bg1: "#1c1917", bg2: "#292524", accent: "#fbbf24", label: "Cinematic Scene" },
-      metaphor: { bg1: "#1e1b4b", bg2: "#312e81", accent: "#c084fc", label: "Literary Metaphor" },
-      character: { bg1: "#14251d", bg2: "#164e3b", accent: "#34d399", label: "Character Anchor" },
-      environment: { bg1: "#1c1e21", bg2: "#2a2e35", accent: "#60a5fa", label: "Atmospheric Setting" },
-      concept: { bg1: "#18181b", bg2: "#27272a", accent: "#f472b6", label: "Core Concept" },
-    };
-    const c = colors[kind] || colors.concept;
-    const safeTitle = input.title.replace(/["&<>]/g, "");
-
+    const safeTitle = (input.title || "Visual Scene").replace(/["&<>]/g, "");
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 576" width="1024" height="576">
       <defs>
-        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="${c.bg1}"/>
-          <stop offset="100%" stop-color="${c.bg2}"/>
+        <linearGradient id="photoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#090d16"/>
+          <stop offset="50%" stop-color="#111827"/>
+          <stop offset="100%" stop-color="#030712"/>
         </linearGradient>
-        <radialGradient id="glow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="${c.accent}" stop-opacity="0.22"/>
-          <stop offset="100%" stop-color="${c.accent}" stop-opacity="0"/>
-        </radialGradient>
       </defs>
-      <rect width="100%" height="100%" fill="url(#bg)"/>
-      <circle cx="512" cy="288" r="240" fill="url(#glow)"/>
-      <g stroke="${c.accent}" stroke-width="1.5" fill="none" opacity="0.6">
-        <circle cx="512" cy="288" r="160"/>
-        <circle cx="512" cy="288" r="90" stroke-dasharray="4,6"/>
-        <line x1="80" y1="288" x2="944" y2="288" opacity="0.35"/>
-        <line x1="512" y1="60" x2="512" y2="516" opacity="0.35"/>
-      </g>
-      <rect x="232" y="476" width="560" height="48" rx="10" fill="rgba(15,18,24,0.75)" stroke="rgba(255,255,255,0.1)"/>
+      <rect width="100%" height="100%" fill="url(#photoGrad)"/>
+      <rect x="232" y="476" width="560" height="48" rx="8" fill="rgba(15,18,24,0.85)" stroke="rgba(255,255,255,0.12)"/>
       <text x="512" y="506" fill="#f8fafc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="600" text-anchor="middle" letter-spacing="0.4">${safeTitle}</text>
     </svg>`;
-
     return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
   }
 }

@@ -35,6 +35,10 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
+app.get("/api/queue/status", (_req, res) => {
+  res.json(queue.getStatus());
+});
+
 app.get("/api/providers/status", (_req, res) => {
   res.json({
     analysisProvider: analyst.providerName,
@@ -109,18 +113,9 @@ app.get("/api/image-proxy", async (req, res) => {
   } catch (err) {
     console.warn("Image proxy upstream fetch failed:", targetUrl, err);
 
-    // Guaranteed fallback: generate high-aesthetic SVG on the fly
-    const promptMatch = targetUrl.match(/\/prompt\/([^?]+)/);
-    const queryPrompt = promptMatch ? decodeURIComponent(promptMatch[1]) : "Visual Scene Anchor";
-    const title = queryPrompt.split(/[,.]/)[0].slice(0, 50);
-
-    const fallbackSvg = imageGen.generateSvgFallback({
-      title: title || "Visual Scene Anchor",
-      prompt: queryPrompt
-    });
-    const svgData = decodeURIComponent(fallbackSvg.replace("data:image/svg+xml;utf8,", ""));
-    res.setHeader("Content-Type", "image/svg+xml");
-    return res.send(svgData);
+    // Guaranteed photographic fallback: redirect to high-resolution literary photo
+    const photographicFallback = "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1024&h=576&q=80";
+    return res.redirect(photographicFallback);
   }
 });
 

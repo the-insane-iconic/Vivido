@@ -40,37 +40,23 @@ export function sortHooksByTextOrder<T extends { sourceText?: string }>(hooks: T
  * Generates an instant, cinematic 16:9 SVG visual if remote image fails or is unavailable.
  */
 export function generateFallbackSvg(title: string, accentColor: string, kind = "scene"): string {
-  const safeTitle = (title || "Visual Memory").replace(/["&<>]/g, "");
+  const safeTitle = (title || "Cinematic Visual Scene").replace(/["&<>]/g, "");
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 576" width="1024" height="576">
     <defs>
       <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#0f172a"/>
-        <stop offset="50%" stop-color="#1e1b4b"/>
-        <stop offset="100%" stop-color="#090d16"/>
+        <stop offset="0%" stop-color="#090d16"/>
+        <stop offset="50%" stop-color="#111827"/>
+        <stop offset="100%" stop-color="#030712"/>
       </linearGradient>
-      <radialGradient id="glowGrad" cx="50%" cy="45%" r="50%">
-        <stop offset="0%" stop-color="${accentColor}" stop-opacity="0.32"/>
+      <radialGradient id="glowGrad" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="${accentColor}" stop-opacity="0.18"/>
         <stop offset="100%" stop-color="${accentColor}" stop-opacity="0"/>
       </radialGradient>
-      <filter id="softGlow">
-        <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
-        <feMerge>
-          <feMergeNode in="coloredBlur"/>
-          <feMergeNode in="SourceGraphic"/>
-        </feMerge>
-      </filter>
     </defs>
     <rect width="100%" height="100%" fill="url(#bgGrad)"/>
-    <circle cx="512" cy="270" r="240" fill="url(#glowGrad)"/>
-    <g stroke="${accentColor}" stroke-width="1.5" fill="none" opacity="0.45">
-      <circle cx="512" cy="270" r="170"/>
-      <circle cx="512" cy="270" r="100" stroke-dasharray="5,7"/>
-      <line x1="140" y1="270" x2="884" y2="270" opacity="0.35"/>
-      <line x1="512" y1="60" x2="512" y2="480" opacity="0.35"/>
-    </g>
-    <path d="M 320 380 Q 512 320 704 380" stroke="${accentColor}" stroke-width="2.5" fill="none" opacity="0.6"/>
-    <rect x="212" y="476" width="600" height="48" rx="10" fill="rgba(15,23,42,0.88)" stroke="rgba(255,255,255,0.12)"/>
-    <text x="512" y="506" fill="#f8fafc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="600" text-anchor="middle" letter-spacing="0.4">${safeTitle}</text>
+    <circle cx="512" cy="288" r="280" fill="url(#glowGrad)"/>
+    <rect x="212" y="480" width="600" height="48" rx="8" fill="rgba(15,23,42,0.88)" stroke="rgba(255,255,255,0.12)"/>
+    <text x="512" y="510" fill="#f8fafc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="600" text-anchor="middle" letter-spacing="0.4">${safeTitle}</text>
   </svg>`;
 
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;

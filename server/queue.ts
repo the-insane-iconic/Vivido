@@ -56,6 +56,15 @@ export class InMemoryJobQueue {
     });
   }
 
+  getStatus() {
+    return {
+      imageQueueLength: this.imageQueue.length,
+      imageQueue: this.imageQueue,
+      isGeneratingImage: this.isGeneratingImage,
+      isAnalyzing: this.isAnalyzing
+    };
+  }
+
   getHooks(pageId: string): VisualHook[] {
     return [...this.hookStore.values()].filter(h => h.pageId === pageId);
   }
@@ -246,6 +255,11 @@ export class InMemoryJobQueue {
         if (!hook || hook.status === "ready") continue;
 
         await this.generateSingleImage(hook, job.jobId);
+
+        // Pacing delay: Give downstream image AI proper breathing room so every image loads reliably
+        if (this.imageQueue.length > 0) {
+          await new Promise(resolve => setTimeout(resolve, 4500));
+        }
       }
     } finally {
       this.isGeneratingImage = false;
@@ -303,7 +317,7 @@ export class InMemoryJobQueue {
       } catch (error) {
         last = error;
         if (attempt < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 350 * 2 ** (attempt - 1)));
+          await new Promise(resolve => setTimeout(resolve, 2500 * attempt));
         }
       }
     }
