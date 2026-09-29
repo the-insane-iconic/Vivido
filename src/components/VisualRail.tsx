@@ -186,7 +186,11 @@ export function VisualRail({
               <div className="poster-inner">
                 {hook.imageUrl ? (
                   <img
-                    src={hook.imageUrl}
+                    src={
+                      hook.imageUrl.startsWith("http://") || hook.imageUrl.startsWith("https://")
+                        ? `/api/image-proxy?url=${encodeURIComponent(hook.imageUrl)}`
+                        : hook.imageUrl
+                    }
                     alt=""
                     className="poster-img pop-in"
                     loading="lazy"
@@ -304,9 +308,20 @@ export function VisualRail({
             <div className="modal-body modal-body-poster">
               {activeModalHook.imageUrl && (
                 <div className="modal-poster-wrap">
-                  <img src={activeModalHook.imageUrl} alt={activeModalHook.title} />
+                  <img
+                    src={
+                      activeModalHook.imageUrl.startsWith("http://") || activeModalHook.imageUrl.startsWith("https://")
+                        ? `/api/image-proxy?url=${encodeURIComponent(activeModalHook.imageUrl)}`
+                        : activeModalHook.imageUrl
+                    }
+                    alt={activeModalHook.title}
+                  />
                   <a
-                    href={activeModalHook.imageUrl}
+                    href={
+                      activeModalHook.imageUrl.startsWith("http://") || activeModalHook.imageUrl.startsWith("https://")
+                        ? `/api/image-proxy?url=${encodeURIComponent(activeModalHook.imageUrl)}`
+                        : activeModalHook.imageUrl
+                    }
                     target="_blank"
                     rel="noreferrer"
                     className="modal-action-btn"

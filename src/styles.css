@@ -481,6 +481,20 @@ button:disabled { cursor: default; opacity: .45; }
   user-select: text;
   margin: 0 auto;
 }
+.chrome-pdf-page.page-virtual-spacer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+}
+.virtual-page-skeleton {
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  user-select: none;
+  opacity: 0.6;
+}
 .page-surface-container {
   position: relative;
   overflow: hidden;

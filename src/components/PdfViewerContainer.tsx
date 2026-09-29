@@ -34,22 +34,34 @@ export function PdfViewerContainer({
   const containerRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
-  // Trackpad pinch-to-zoom & Ctrl+Wheel smooth zooming
+  // Trackpad pinch-to-zoom & Ctrl+Wheel smooth zooming throttled to screen refresh rate
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !onZoomChange) return;
+
+    let rafId: number | null = null;
+    let targetZoom = scale;
 
     const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         const factor = Math.exp(-e.deltaY * 0.005);
-        const next = Math.min(2.5, Math.max(0.4, Number((scale * factor).toFixed(2))));
-        onZoomChange(next);
+        targetZoom = Math.min(2.5, Math.max(0.4, Number((targetZoom * factor).toFixed(2))));
+
+        if (!rafId) {
+          rafId = requestAnimationFrame(() => {
+            onZoomChange(targetZoom);
+            rafId = null;
+          });
+        }
       }
     };
 
     container.addEventListener("wheel", handleWheel, { passive: false });
-    return () => container.removeEventListener("wheel", handleWheel);
+    return () => {
+      container.removeEventListener("wheel", handleWheel);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, [scale, onZoomChange]);
 
   const lastScrolledPageRef = useRef<number | null>(null);
@@ -146,24 +158,51 @@ export function PdfViewerContainer({
     );
   }
 
-  // Continuous Scroll Mode (Chrome default)
+  // Continuous Scroll Mode (Chrome default with windowed page virtualization)
+  // Only renders active canvases for pages in the immediate reading window (±3 pages).
+  // Pages outside the active window are lightweight zero-overhead spacers, eliminating zoom lag.
   const pages = Array.from({ length: pageCount }, (_, i) => i + 1);
+  const virtualWidth = Math.round(750 * scale);
+  const virtualHeight = Math.round(1060 * scale);
 
   return (
     <div className="chrome-viewer-stage continuous-flow" ref={containerRef}>
-      {pages.map(num => (
-        <PdfPage
-          key={num}
-          pdf={pdf}
-          pageNumber={num}
-          scale={scale}
-          rotation={rotation}
-          pageHooks={allHooks.filter(h => h.pageNumber === num)}
-          selectedHookId={selectedHookId}
-          onSelectHook={onSelectHook}
-          onTextSelected={onTextSelected}
-        />
-      ))}
+      {pages.map(num => {
+        const isNear = Math.abs(num - currentPage) <= 3;
+        if (!isNear) {
+          return (
+            <div
+              key={num}
+              className="chrome-pdf-page page-virtual-spacer"
+              id={`pdf-page-${num}`}
+              data-page-number={num}
+              style={{
+                width: `${virtualWidth}px`,
+                height: `${virtualHeight}px`,
+                minHeight: `${virtualHeight}px`,
+              }}
+            >
+              <div className="virtual-page-skeleton">
+                <span>Page {num}</span>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <PdfPage
+            key={num}
+            pdf={pdf}
+            pageNumber={num}
+            scale={scale}
+            rotation={rotation}
+            pageHooks={allHooks.filter(h => h.pageNumber === num)}
+            selectedHookId={selectedHookId}
+            onSelectHook={onSelectHook}
+            onTextSelected={onTextSelected}
+          />
+        );
+      })}
     </div>
   );
 }

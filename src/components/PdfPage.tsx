@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, memo } from "react";
 import type { PdfDocument } from "../lib/pdf";
 import { renderPage } from "../lib/pdf";
 import type { VisualHook } from "../types";
 import { getHookColor } from "../lib/colors";
 import { Loader2 } from "lucide-react";
 
-export function PdfPage({
+export const PdfPage = memo(function PdfPage({
   pdf,
   pageNumber,
   scale = 1.0,
@@ -277,7 +277,6 @@ export function PdfPage({
           style={{
             transform: zoomRatio !== 1 ? `scale(${zoomRatio})` : undefined,
             transformOrigin: "top left",
-            transition: "transform 0.12s cubic-bezier(0.16, 1, 0.3, 1)",
             width: baseDimensions ? `${Math.round(baseDimensions.width * renderedScale)}px` : undefined,
             height: baseDimensions ? `${Math.round(baseDimensions.height * renderedScale)}px` : undefined,
           }}
@@ -299,4 +298,5 @@ export function PdfPage({
       )}
     </div>
   );
-}
+});
+

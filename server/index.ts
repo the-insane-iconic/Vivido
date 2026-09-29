@@ -42,6 +42,45 @@ app.get("/api/providers/status", (_req, res) => {
   });
 });
 
+// High-performance image proxy to ensure images load reliably in any browser/ISP/adblocker setup
+const imageCache = new Map<string, { buffer: Buffer; contentType: string }>();
+
+app.get("/api/image-proxy", async (req, res) => {
+  const targetUrl = String(req.query.url || "").trim();
+  if (!targetUrl) return res.status(400).send("url parameter required");
+
+  if (imageCache.has(targetUrl)) {
+    const item = imageCache.get(targetUrl)!;
+    res.setHeader("Content-Type", item.contentType);
+    res.setHeader("Cache-Control", "public, max-age=86400, immutable");
+    return res.send(item.buffer);
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    const upstream = await fetch(targetUrl, { signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (!upstream.ok) throw new Error(`Upstream returned ${upstream.status}`);
+    const buffer = Buffer.from(await upstream.arrayBuffer());
+    const contentType = upstream.headers.get("content-type") || "image/jpeg";
+
+    if (imageCache.size > 150) {
+      const oldestKey = imageCache.keys().next().value;
+      if (oldestKey) imageCache.delete(oldestKey);
+    }
+    imageCache.set(targetUrl, { buffer, contentType });
+
+    res.setHeader("Content-Type", contentType);
+    res.setHeader("Cache-Control", "public, max-age=86400, immutable");
+    return res.send(buffer);
+  } catch (err) {
+    console.warn("Image proxy upstream fetch failed:", targetUrl, err);
+    return res.status(502).send("Failed to fetch image upstream");
+  }
+});
+
 app.get("/api/events", (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache, no-transform");
