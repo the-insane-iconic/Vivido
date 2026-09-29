@@ -452,18 +452,20 @@ button:disabled { cursor: default; opacity: .45; }
 
 /* CHROME-STYLED READER STAGE (#525659) */
 .chrome-viewer-stage-wrap {
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: auto;
   padding: 24px;
-  display: flex;
-  justify-content: center;
   background: #525659;
   position: relative;
+  box-sizing: border-box;
 }
 .chrome-viewer-stage {
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
 }
 .chrome-viewer-stage.continuous-flow {
   gap: 16px;
@@ -1194,7 +1196,8 @@ button:disabled { cursor: default; opacity: .45; }
   transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
   z-index: 5;
 }
-.poster-card-9-16:hover .poster-expand-btn {
+.poster-card-9-16:hover .poster-expand-btn,
+.poster-card-16-9:hover .poster-expand-btn {
   opacity: 1;
 }
 .poster-expand-btn:hover {

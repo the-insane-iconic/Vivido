@@ -43,14 +43,15 @@ app.get("/api/providers/status", (_req, res) => {
 });
 
 // High-performance image proxy to ensure images load reliably in any browser/ISP/adblocker setup
-const imageCache = new Map<string, { buffer: Buffer; contentType: string }>();
+import { globalImageCache } from "./providers/image";
 
 app.get("/api/image-proxy", async (req, res) => {
   const targetUrl = String(req.query.url || "").trim();
   if (!targetUrl) return res.status(400).send("url parameter required");
 
-  if (imageCache.has(targetUrl)) {
-    const item = imageCache.get(targetUrl)!;
+  // 1. Check in-memory cache
+  if (globalImageCache.has(targetUrl)) {
+    const item = globalImageCache.get(targetUrl)!;
     res.setHeader("Content-Type", item.contentType);
     res.setHeader("Cache-Control", "public, max-age=86400, immutable");
     return res.send(item.buffer);
@@ -58,26 +59,55 @@ app.get("/api/image-proxy", async (req, res) => {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
-    const upstream = await fetch(targetUrl, { signal: controller.signal });
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const upstream = await fetch(targetUrl, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://pollinations.ai/",
+        "Origin": "https://pollinations.ai"
+      }
+    });
     clearTimeout(timeout);
 
-    if (!upstream.ok) throw new Error(`Upstream returned ${upstream.status}`);
-    const buffer = Buffer.from(await upstream.arrayBuffer());
-    const contentType = upstream.headers.get("content-type") || "image/jpeg";
-
-    if (imageCache.size > 150) {
-      const oldestKey = imageCache.keys().next().value;
-      if (oldestKey) imageCache.delete(oldestKey);
+    if (upstream.ok) {
+      const buffer = Buffer.from(await upstream.arrayBuffer());
+      if (buffer.byteLength > 1000) {
+        const contentType = upstream.headers.get("content-type") || "image/jpeg";
+        if (globalImageCache.size > 200) {
+          const oldestKey = globalImageCache.keys().next().value;
+          if (oldestKey) globalImageCache.delete(oldestKey);
+        }
+        globalImageCache.set(targetUrl, { buffer, contentType });
+        res.setHeader("Content-Type", contentType);
+        res.setHeader("Cache-Control", "public, max-age=86400, immutable");
+        return res.send(buffer);
+      }
     }
-    imageCache.set(targetUrl, { buffer, contentType });
-
-    res.setHeader("Content-Type", contentType);
-    res.setHeader("Cache-Control", "public, max-age=86400, immutable");
-    return res.send(buffer);
+    throw new Error(`Upstream returned status ${upstream.status}`);
   } catch (err) {
     console.warn("Image proxy upstream fetch failed:", targetUrl, err);
-    return res.status(502).send("Failed to fetch image upstream");
+
+    // Fallback: search Wikimedia or synthesize SVG concept
+    try {
+      const promptMatch = targetUrl.match(/\/prompt\/([^?]+)/);
+      const queryPrompt = promptMatch ? decodeURIComponent(promptMatch[1]) : "literary scene";
+      const wikiFallback = await imageGen.searchWikimediaPhotography(queryPrompt, queryPrompt);
+      if (wikiFallback && globalImageCache.has(wikiFallback.imageUrl)) {
+        const item = globalImageCache.get(wikiFallback.imageUrl)!;
+        res.setHeader("Content-Type", item.contentType);
+        return res.send(item.buffer);
+      }
+    } catch {}
+
+    // Final fallback: generate high-quality SVG on the fly
+    const fallbackSvg = imageGen.generateSvgFallback({
+      title: "Visual Scene Anchor",
+      prompt: targetUrl
+    });
+    const svgData = decodeURIComponent(fallbackSvg.replace("data:image/svg+xml;utf8,", ""));
+    res.setHeader("Content-Type", "image/svg+xml");
+    return res.send(svgData);
   }
 });
 

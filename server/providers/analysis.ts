@@ -17,7 +17,7 @@ You must follow these strict directives:
      a) Subject & Action: Exact focal actors, postures, physical gestures, garments, or central objects/mechanisms.
      b) Environment & Architecture: Spatial setting, architecture, materials, ambient textures, time of day/weather.
      c) Lighting & Atmosphere: Precise lighting direction (e.g., golden hour volumetric rays, dramatic chiaroscuro shadows, cool neon bioluminescence, diffuse museum skylight).
-     d) Cinematography & Framing: Wide landscape 16:9 cinematic framing, camera lens and angle (e.g., anamorphic 35mm widescreen landscape shot, low-angle hero perspective, shallow-depth-of-field landscape vista).
+     d) Cinematography & Framing: Standard cinematic 16:9 landscape aspect ratio (1.78:1). Use natural, undistorted 35mm or 50mm spherical lens perspective. NEVER use anamorphic squeezing, 2.35:1 squashing, or fisheye distortion.
      e) Color Palette & Mood: Harmonious color scheme and emotional resonance.
      f) Aesthetics: Photorealistic cinematic film still, fine-art museum oil painting, or precision architectural render.
 2. CRITICAL NEGATIVE CONSTRAINTS:

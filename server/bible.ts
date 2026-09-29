@@ -13,7 +13,7 @@ export class VisualBibleManager {
         illustrationLevel: "fine art museum grade",
         colorPalette: "rich evocative tones tailored to story period",
         lightingApproach: "volumetric natural lighting with atmospheric depth",
-        composition: "cinematic 16:9 widescreen anamorphic landscape framing",
+        composition: "cinematic standard 16:9 landscape framing, natural undistorted 35mm spherical lens perspective",
         historicalPeriod: "authentic to narrative setting"
       },
       updatedAt: Date.now()
@@ -204,16 +204,16 @@ export class VisualBibleManager {
       // Fallback: apply book visual style
       return {
         relevantEntities: [],
-        continuityPromptSnippet: `[Visual Style: ${this.bible.style.lightingApproach}, ${this.bible.style.colorPalette}, ${this.bible.style.composition}]`
+        continuityPromptSnippet: `, ${this.bible.style.lightingApproach}, ${this.bible.style.colorPalette}, ${this.bible.style.composition}`
       };
     }
 
     const entitySnippets = matchedEntities.map(e => {
       const constraints = e.visualConstraints.slice(0, 2).join("; ");
-      return `${e.canonicalName} (${e.kind}): ${constraints || e.description.slice(0, 80)}`;
-    }).join(" | ");
+      return `${e.canonicalName}: ${constraints || e.description.slice(0, 80)}`;
+    }).join(", ");
 
-    const continuityPromptSnippet = `[Continuity: ${entitySnippets}. Style: ${this.bible.style.lightingApproach}, ${this.bible.style.colorPalette}, ${this.bible.style.composition}]`;
+    const continuityPromptSnippet = `, ${entitySnippets}, ${this.bible.style.lightingApproach}, ${this.bible.style.colorPalette}, ${this.bible.style.composition}`;
 
     return {
       relevantEntities: matchedEntities,

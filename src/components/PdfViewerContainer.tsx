@@ -15,7 +15,9 @@ export function PdfViewerContainer({
   selectedHookId,
   onSelectHook,
   highlightedText,
-  onTextSelected
+  onTextSelected,
+  pageWidth,
+  pageHeight,
 }: {
   pdf: PdfDocument | null;
   pageCount: number;
@@ -30,6 +32,8 @@ export function PdfViewerContainer({
   onSelectHook?: (hook: import("../types").VisualHook | null) => void;
   highlightedText?: string | null;
   onTextSelected?: (text: string) => void;
+  pageWidth?: number;
+  pageHeight?: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -162,8 +166,10 @@ export function PdfViewerContainer({
   // Only renders active canvases for pages in the immediate reading window (±3 pages).
   // Pages outside the active window are lightweight zero-overhead spacers, eliminating zoom lag.
   const pages = Array.from({ length: pageCount }, (_, i) => i + 1);
-  const virtualWidth = Math.round(750 * scale);
-  const virtualHeight = Math.round(1060 * scale);
+  const baseWidth = pageWidth && pageWidth > 0 ? pageWidth : 612;
+  const baseHeight = pageHeight && pageHeight > 0 ? pageHeight : 792;
+  const virtualWidth = Math.round(baseWidth * scale);
+  const virtualHeight = Math.round(baseHeight * scale);
 
   return (
     <div className="chrome-viewer-stage continuous-flow" ref={containerRef}>

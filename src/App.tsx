@@ -289,7 +289,8 @@ function App() {
   const handleFitWidth = useCallback(() => {
     if (!readerStageRef.current || !reader.page) return;
     const stageWidth = readerStageRef.current.clientWidth;
-    const targetScale = Math.max(0.4, Math.min(2.5, (stageWidth - 64) / reader.page.width));
+    const availableWidth = Math.max(200, stageWidth - 48);
+    const targetScale = Math.max(0.4, Math.min(2.5, availableWidth / reader.page.width));
     setZoom(Number(targetScale.toFixed(2)));
   }, [reader.page]);
 
@@ -297,7 +298,8 @@ function App() {
   const handleFitPage = useCallback(() => {
     if (!readerStageRef.current || !reader.page) return;
     const stageHeight = readerStageRef.current.clientHeight;
-    const targetScale = Math.max(0.4, Math.min(2.5, (stageHeight - 64) / reader.page.height));
+    const availableHeight = Math.max(200, stageHeight - 48);
+    const targetScale = Math.max(0.4, Math.min(2.5, availableHeight / reader.page.height));
     setZoom(Number(targetScale.toFixed(2)));
   }, [reader.page]);
 
@@ -401,6 +403,8 @@ function App() {
               onTextSelected={text => {
                 setHighlightedText(text);
               }}
+              pageWidth={reader.page?.width}
+              pageHeight={reader.page?.height}
             />
           )}
 
