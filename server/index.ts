@@ -16,7 +16,13 @@ const queue = new InMemoryJobQueue(analyst, imageGen);
 const clients = new Set<import("express").Response>();
 queue.subscribe(event => {
   const payload = `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`;
-  for (const client of clients) client.write(payload);
+  for (const client of clients) {
+    try {
+      client.write(payload);
+    } catch {
+      clients.delete(client);
+    }
+  }
 });
 
 app.get("/api/health", (_req, res) => {

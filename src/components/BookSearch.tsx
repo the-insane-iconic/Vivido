@@ -138,7 +138,15 @@ export function BookSearch({
                     }}
                   >
                     {item.hook?.imageUrl ? (
-                      <img src={item.hook.imageUrl} alt="" className="search-thumb-16-9" />
+                      <img
+                        src={
+                          item.hook.imageUrl.startsWith("http://") || item.hook.imageUrl.startsWith("https://")
+                            ? `/api/image-proxy?url=${encodeURIComponent(item.hook.imageUrl)}`
+                            : item.hook.imageUrl
+                        }
+                        alt=""
+                        className="search-thumb-16-9"
+                      />
                     ) : (
                       <div className="search-thumb-placeholder">
                         {item.type === "entity" ? <Users size={16} /> : <BookOpen size={16} />}
@@ -181,7 +189,15 @@ export function BookSearch({
                       }}
                     >
                       {hook.imageUrl ? (
-                        <img src={hook.imageUrl} alt="" className="search-thumb-16-9" />
+                        <img
+                          src={
+                            hook.imageUrl.startsWith("http://") || hook.imageUrl.startsWith("https://")
+                              ? `/api/image-proxy?url=${encodeURIComponent(hook.imageUrl)}`
+                              : hook.imageUrl
+                          }
+                          alt=""
+                          className="search-thumb-16-9"
+                        />
                       ) : (
                         <div className="search-thumb-placeholder">{hook.kind}</div>
                       )}

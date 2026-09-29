@@ -144,7 +144,15 @@ export function VisualGallery({
                               title="Click to jump to this scene in the book"
                             >
                               <div className="gallery-card-media-16-9">
-                                <img src={hook.imageUrl} alt={hook.title} loading="lazy" />
+                                <img
+                                  src={
+                                    hook.imageUrl?.startsWith("http://") || hook.imageUrl?.startsWith("https://")
+                                      ? `/api/image-proxy?url=${encodeURIComponent(hook.imageUrl)}`
+                                      : hook.imageUrl
+                                  }
+                                  alt={hook.title}
+                                  loading="lazy"
+                                />
                                 <span className="gallery-card-kind-tag">{hook.kind}</span>
                               </div>
                               <div className="gallery-card-details">

@@ -177,27 +177,36 @@ export function ChromePdfToolbar({
             <Minus size={15} />
           </button>
 
-          <select
-            className="chrome-zoom-select"
-            value={Math.round(zoom * 100)}
-            onChange={e => {
-              const val = e.target.value;
-              if (val === "fit-width") onFitWidth();
-              else if (val === "fit-page") onFitPage();
-              else onZoomChange(Number(val) / 100);
-            }}
-            disabled={!pageCount}
-            aria-label="Zoom percentage"
-          >
-            <option value="fit-width">Fit width</option>
-            <option value="fit-page">Fit page</option>
-            <option value="50">50%</option>
-            <option value="75">75%</option>
-            <option value="100">100%</option>
-            <option value="125">125%</option>
-            <option value="150">150%</option>
-            <option value="200">200%</option>
-          </select>
+          {(() => {
+            const roundedZoom = Math.round(zoom * 100);
+            const standardZooms = [50, 75, 100, 125, 150, 200];
+            const isStandard = standardZooms.includes(roundedZoom);
+
+            return (
+              <select
+                className="chrome-zoom-select"
+                value={roundedZoom}
+                onChange={e => {
+                  const val = e.target.value;
+                  if (val === "fit-width") onFitWidth();
+                  else if (val === "fit-page") onFitPage();
+                  else onZoomChange(Number(val) / 100);
+                }}
+                disabled={!pageCount}
+                aria-label="Zoom percentage"
+              >
+                <option value="fit-width">Fit width</option>
+                <option value="fit-page">Fit page</option>
+                {!isStandard && <option value={roundedZoom}>{roundedZoom}%</option>}
+                <option value="50">50%</option>
+                <option value="75">75%</option>
+                <option value="100">100%</option>
+                <option value="125">125%</option>
+                <option value="150">150%</option>
+                <option value="200">200%</option>
+              </select>
+            );
+          })()}
 
           <button
             className="chrome-btn"

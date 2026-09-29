@@ -15,12 +15,38 @@ function PageThumbnail({
   hasHooks: boolean;
   onClick: () => void;
 }) {
+  const containerRef = useRef<HTMLButtonElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [inView, setInView] = useState(false);
   const [rendered, setRendered] = useState(false);
   const [aspectRatio, setAspectRatio] = useState(1.33);
 
+  // Lazy render thumbnail canvas only when near viewport
   useEffect(() => {
-    if (!pdf || !canvasRef.current) return;
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries[0]?.isIntersecting) {
+          setInView(true);
+        }
+      },
+      { rootMargin: "350px 0px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Auto-scroll selected thumbnail into view when page changes in the main reader
+  useEffect(() => {
+    if (isSelected && containerRef.current) {
+      containerRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [isSelected]);
+
+  useEffect(() => {
+    if (!pdf || !canvasRef.current || !inView || rendered) return;
     let cancelled = false;
 
     pdf.getPage(pageNumber).then(page => {
@@ -68,10 +94,11 @@ function PageThumbnail({
     return () => {
       cancelled = true;
     };
-  }, [pdf, pageNumber]);
+  }, [pdf, pageNumber, inView, rendered]);
 
   return (
     <button
+      ref={containerRef}
       className={`thumb-btn ${isSelected ? "selected" : ""}`}
       onClick={onClick}
       title={`Page ${pageNumber}${hasHooks ? " · Visual memory ready" : ""}`}
@@ -122,21 +149,13 @@ export function PageStrip({
     }
   };
 
-  // Window of pages around current page for optimal thumbnail performance in large books
-  let visiblePages: number[] = [];
-  if (pageCount <= 36) {
-    visiblePages = Array.from({ length: pageCount }, (_, i) => i + 1);
-  } else {
-    const start = Math.max(1, currentPage - 12);
-    const end = Math.min(pageCount, start + 28);
-    visiblePages = Array.from({ length: end - start + 1 }, (_, i) => start + i);
-  }
+  const allPages = Array.from({ length: pageCount }, (_, i) => i + 1);
 
   return (
     <aside className="page-strip">
       <div className="strip-header">
         <div className="strip-label">Pages {pageCount > 0 ? `(${pageCount})` : ""}</div>
-        {pageCount > 10 && (
+        {pageCount > 1 && (
           <form onSubmit={handleJump} className="page-jump-form">
             <input
               type="number"
@@ -160,7 +179,7 @@ export function PageStrip({
             <span>No document loaded</span>
           </div>
         ) : (
-          visiblePages.map(n => (
+          allPages.map(n => (
             <PageThumbnail
               key={n}
               pdf={pdf}

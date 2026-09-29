@@ -69,6 +69,8 @@ export function generateFallbackSvg(title: string, accentColor: string, kind = "
       <line x1="512" y1="60" x2="512" y2="480" opacity="0.35"/>
     </g>
     <path d="M 320 380 Q 512 320 704 380" stroke="${accentColor}" stroke-width="2.5" fill="none" opacity="0.6"/>
+    <rect x="212" y="476" width="600" height="48" rx="10" fill="rgba(15,23,42,0.88)" stroke="rgba(255,255,255,0.12)"/>
+    <text x="512" y="506" fill="#f8fafc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="15" font-weight="600" text-anchor="middle" letter-spacing="0.4">${safeTitle}</text>
   </svg>`;
 
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;

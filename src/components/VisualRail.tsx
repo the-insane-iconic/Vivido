@@ -327,7 +327,7 @@ export function VisualRail({
                     className="modal-action-btn"
                     download={`vivido-page-${activeModalHook.pageNumber}-${activeModalHook.title.replace(/\s+/g, "_")}.jpg`}
                   >
-                    <Download size={14} /> Download 9:16 Artwork
+                    <Download size={14} /> Download 16:9 Artwork
                   </a>
                 </div>
               )}
@@ -352,7 +352,7 @@ export function VisualRail({
                   </div>
                   <div>
                     <label>Aspect Ratio</label>
-                    <span>9:16 Portrait</span>
+                    <span>16:9 Landscape</span>
                   </div>
                   <div>
                     <label>Status</label>
