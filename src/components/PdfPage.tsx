@@ -1,0 +1,293 @@
+import { useEffect, useRef, useState, useCallback } from "react";
+import type { PdfDocument } from "../lib/pdf";
+import { renderPage } from "../lib/pdf";
+import type { VisualHook } from "../types";
+import { getHookColor } from "../lib/colors";
+import { Loader2 } from "lucide-react";
+
+export function PdfPage({
+  pdf,
+  pageNumber,
+  scale = 1.0,
+  rotation = 0,
+  pageHooks = [],
+  selectedHookId,
+  onSelectHook,
+  onTextSelected,
+}: {
+  pdf: PdfDocument | null;
+  pageNumber: number;
+  scale: number;
+  rotation?: number;
+  pageHooks?: VisualHook[];
+  selectedHookId?: string | null;
+  onSelectHook?: (hook: VisualHook | null) => void;
+  onTextSelected?: (selectedText: string) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const textLayerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Tracks the scale at which the canvas is currently rendered
+  const [renderedScale, setRenderedScale] = useState(scale);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [baseDimensions, setBaseDimensions] = useState<{ width: number; height: number } | null>(null);
+
+  const renderHandleRef = useRef<ReturnType<typeof renderPage> | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Apply delicate pastel highlighter to text runs corresponding to generated visual hooks
+  const applyHighlights = useCallback(() => {
+    const container = textLayerRef.current;
+    if (!container || !pageHooks || pageHooks.length === 0) return;
+
+    const spans = Array.from(container.querySelectorAll("span"));
+    if (spans.length === 0) return;
+
+    // Reset previous highlights on this page
+    spans.forEach(span => {
+      span.classList.remove("vivido-highlighter-span", "highlight-active-focus");
+      span.style.removeProperty("background");
+      span.style.removeProperty("mix-blend-mode");
+      span.style.removeProperty("box-shadow");
+      span.removeAttribute("data-vivido-hook");
+      span.onclick = null;
+    });
+
+    // Build contiguous text index for matching
+    let aggregatedText = "";
+    const spanPositions: Array<{ span: HTMLElement; start: number; end: number; rawText: string }> = [];
+
+    for (const span of spans) {
+      const text = span.textContent || "";
+      const start = aggregatedText.length;
+      aggregatedText += text + " ";
+      const end = aggregatedText.length;
+      spanPositions.push({ span, start, end, rawText: text });
+    }
+
+    const lowerPage = aggregatedText.toLowerCase();
+
+    pageHooks.forEach((hook, hookIndex) => {
+      if (!hook.sourceText || hook.sourceText.trim().length < 5) return;
+      const color = getHookColor(hookIndex);
+      const isSelected = selectedHookId === hook.id;
+
+      // Clean source text into comparable string
+      const cleanSource = hook.sourceText.toLowerCase().replace(/["\n\r]/g, " ").replace(/\s+/g, " ").trim();
+      let matchStart = -1;
+      let matchEnd = -1;
+
+      // 1. Try exact substring match
+      const exactIdx = lowerPage.indexOf(cleanSource);
+      if (exactIdx !== -1) {
+        matchStart = exactIdx;
+        matchEnd = exactIdx + cleanSource.length;
+      } else {
+        // 2. Try first clause / sentence
+        const firstClause = cleanSource.split(/[.!?]/)[0]?.trim();
+        if (firstClause && firstClause.length > 15) {
+          const clauseIdx = lowerPage.indexOf(firstClause);
+          if (clauseIdx !== -1) {
+            matchStart = clauseIdx;
+            matchEnd = clauseIdx + firstClause.length;
+          }
+        }
+      }
+
+      // 3. Fallback: match first 35 chars
+      if (matchStart === -1 && cleanSource.length > 25) {
+        const snippet = cleanSource.slice(0, 35);
+        const snippetIdx = lowerPage.indexOf(snippet);
+        if (snippetIdx !== -1) {
+          matchStart = snippetIdx;
+          matchEnd = snippetIdx + snippet.length;
+        }
+      }
+
+      // Apply highlighter to all overlapping text spans
+      if (matchStart !== -1 && matchEnd > matchStart) {
+        spanPositions.forEach(({ span, start, end }) => {
+          if (Math.max(start, matchStart) < Math.min(end, matchEnd)) {
+            span.classList.add("vivido-highlighter-span");
+            span.setAttribute("data-vivido-hook", hook.id);
+            span.style.background = color.bg;
+            span.style.mixBlendMode = "multiply";
+            span.style.borderRadius = "2px";
+            span.style.cursor = "pointer";
+
+            if (isSelected) {
+              span.classList.add("highlight-active-focus");
+              span.style.boxShadow = `0 0 0 2px ${color.border}, 0 2px 10px ${color.bg}`;
+            } else {
+              span.style.boxShadow = `0 0 0 1px ${color.bg}`;
+            }
+
+            span.onclick = e => {
+              e.stopPropagation();
+              onSelectHook?.(hook);
+            };
+          }
+        });
+      } else {
+        // Keyword-based fallback for hyphenated/line-wrapped PDF text
+        const words = cleanSource.split(/\s+/).filter(w => w.length > 4);
+        if (words.length >= 3) {
+          spans.forEach(span => {
+            const spanText = (span.textContent || "").toLowerCase();
+            const matchingWords = words.filter(w => spanText.includes(w)).length;
+            if (matchingWords >= 2 || (words.length <= 4 && matchingWords >= 1)) {
+              span.classList.add("vivido-highlighter-span");
+              span.setAttribute("data-vivido-hook", hook.id);
+              span.style.background = color.bg;
+              span.style.mixBlendMode = "multiply";
+              span.style.borderRadius = "2px";
+              span.style.cursor = "pointer";
+
+              if (isSelected) {
+                span.classList.add("highlight-active-focus");
+                span.style.boxShadow = `0 0 0 2px ${color.border}, 0 2px 10px ${color.bg}`;
+              } else {
+                span.style.boxShadow = `0 0 0 1px ${color.bg}`;
+              }
+
+              span.onclick = e => {
+                e.stopPropagation();
+                onSelectHook?.(hook);
+              };
+            }
+          });
+        }
+      }
+    });
+  }, [pageHooks, selectedHookId, onSelectHook]);
+
+  // Primary High-Res Render Function
+  const executeRender = useCallback((targetScale: number, targetRotation: number) => {
+    if (!pdf || !canvasRef.current) return;
+
+    renderHandleRef.current?.cancel();
+
+    const handle = renderPage(
+      pdf,
+      pageNumber,
+      canvasRef.current,
+      textLayerRef.current,
+      targetScale,
+      targetRotation
+    );
+    renderHandleRef.current = handle;
+
+    handle.promise
+      .then(dims => {
+        if (dims.cssWidth > 0 && dims.cssHeight > 0) {
+          setBaseDimensions({
+            width: dims.cssWidth / targetScale,
+            height: dims.cssHeight / targetScale,
+          });
+          setRenderedScale(targetScale);
+          setInitialLoading(false);
+          // Apply pastel highlighters to matching passage text
+          applyHighlights();
+        }
+      })
+      .catch(err => {
+        if (err?.name !== "RenderingCancelledException") {
+          setError(err instanceof Error ? err.message : "Unable to render page");
+        }
+      });
+  }, [pdf, pageNumber, applyHighlights]);
+
+  // Re-apply highlights whenever pageHooks or selection changes
+  useEffect(() => {
+    applyHighlights();
+  }, [applyHighlights, pageHooks, selectedHookId]);
+
+  // Initial render or rotation change (immediate)
+  useEffect(() => {
+    if (!pdf) return;
+    executeRender(scale, rotation);
+    return () => {
+      renderHandleRef.current?.cancel();
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [pdf, pageNumber, rotation, executeRender, scale]);
+
+  // Smooth Zoom Handling:
+  // When scale changes, apply instant GPU CSS transform, then debounce the crisp re-render
+  useEffect(() => {
+    if (!pdf || renderedScale === scale) return;
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Debounce the heavy canvas re-render so rapid zoom steps don't stutter
+    debounceTimerRef.current = setTimeout(() => {
+      executeRender(scale, rotation);
+    }, 220);
+
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [scale, renderedScale, rotation, executeRender, pdf]);
+
+  // Handle native text selection across the text layer
+  const handleMouseUp = () => {
+    if (!onTextSelected) return;
+    const selection = window.getSelection();
+    const text = selection?.toString()?.trim();
+    if (text && text.length > 5) {
+      onTextSelected(text);
+    }
+  };
+
+  // Instant scale ratio for GPU hardware acceleration
+  const zoomRatio = renderedScale > 0 ? scale / renderedScale : 1;
+  const currentWidth = baseDimensions ? Math.round(baseDimensions.width * scale) : undefined;
+  const currentHeight = baseDimensions ? Math.round(baseDimensions.height * scale) : 700;
+
+  return (
+    <div
+      className="chrome-pdf-page"
+      id={`pdf-page-${pageNumber}`}
+      data-page-number={pageNumber}
+      ref={containerRef}
+      style={{
+        width: currentWidth ? `${currentWidth}px` : undefined,
+        minHeight: `${currentHeight}px`,
+      }}
+      onMouseUp={handleMouseUp}
+    >
+      {error ? (
+        <div className="pdf-error">{error}</div>
+      ) : (
+        <div
+          className="page-surface-container"
+          style={{
+            transform: zoomRatio !== 1 ? `scale(${zoomRatio})` : undefined,
+            transformOrigin: "top left",
+            transition: "transform 0.12s cubic-bezier(0.16, 1, 0.3, 1)",
+            width: baseDimensions ? `${Math.round(baseDimensions.width * renderedScale)}px` : undefined,
+            height: baseDimensions ? `${Math.round(baseDimensions.height * renderedScale)}px` : undefined,
+          }}
+        >
+          {/* High-res Rendered Canvas */}
+          <canvas ref={canvasRef} className="pdf-canvas" />
+
+          {/* Interactive Text Layer with Pastel Highlights */}
+          <div ref={textLayerRef} className="textLayer" />
+
+          {/* Initial Loading Overlay */}
+          {initialLoading && (
+            <div className="page-render-loader">
+              <Loader2 className="spin" size={26} />
+              <span>Loading page…</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

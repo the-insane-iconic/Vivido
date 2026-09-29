@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Vivido Companion</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body {
+      width: 320px;
+      padding: 16px;
+      background: #13161c;
+      color: #f1f5f9;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .logo-badge {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #f6c85f, #fb923c);
+      display: grid;
+      place-items: center;
+      font-weight: 700;
+      color: #1a1608;
+      font-size: 16px;
+    }
+    .brand-title {
+      font-size: 15px;
+      font-weight: 650;
+      color: #fff;
+    }
+    .brand-sub {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    .action-btn {
+      width: 100%;
+      height: 38px;
+      border-radius: 8px;
+      background: linear-gradient(180deg, #2b313d, #20242e);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #f1f5f9;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      transition: all 0.15s ease;
+    }
+    .action-btn.primary {
+      background: linear-gradient(180deg, #8ab4f8, #60a5fa);
+      color: #0b1528;
+      border: 0;
+      font-weight: 650;
+    }
+    .action-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,.35);
+    }
+    .settings-section {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .label {
+      font-size: 10.5px;
+      text-transform: uppercase;
+      color: #64748b;
+      font-weight: 600;
+      margin-bottom: 5px;
+      display: block;
+    }
+    .url-input {
+      width: 100%;
+      height: 32px;
+      padding: 0 10px;
+      border-radius: 6px;
+      background: #1c202a;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #fff;
+      font-size: 11.5px;
+      outline: 0;
+      margin-bottom: 6px;
+    }
+    .save-indicator {
+      font-size: 10.5px;
+      color: #34d399;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo-badge">V</div>
+    <div>
+      <div class="brand-title">Vivido Companion</div>
+      <div class="brand-sub">Visual AI Reading Environment</div>
+    </div>
+  </div>
+
+  <button id="open-tab-btn" class="action-btn primary">
+    Open Current PDF in Vivido
+  </button>
+
+  <button id="launch-app-btn" class="action-btn">
+    Launch Vivido Reader App
+  </button>
+
+  <div class="settings-section">
+    <span class="label">Connected App URL</span>
+    <input id="base-url-input" type="text" class="url-input" placeholder="http://localhost:5173" />
+    <span id="save-msg" class="save-indicator">✓ URL saved</span>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
